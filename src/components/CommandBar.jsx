@@ -31,6 +31,7 @@ export default function CommandBar({
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [elapsed, setElapsed] = useState(0)
+  const [menuOpen, setMenuOpen] = useState(null) // label of the open dropdown, if any
   const ref = useRef(null)
 
   // A visible clock: 2-4 minutes of a static "Working…" reads as a hang.
@@ -75,15 +76,49 @@ export default function CommandBar({
           ) : (
             <>
               {actions.map((a) => (
-                <button
-                  key={a.label}
-                  className="pd-cmd-job"
-                  onClick={a.run}
-                  disabled={disabled || a.disabled}
-                  title={a.hint}
-                >
-                  {a.label}
-                </button>
+                a.menu ? (
+                  // A grouped action: one button opens a small popover of related
+                  // sub-actions (e.g. the gap-analysis controls), instead of three
+                  // buttons crowding the dock.
+                  <span className="pd-cmd-menuwrap" key={a.label}>
+                    <button
+                      className={`pd-cmd-job ${menuOpen === a.label ? 'is-open' : ''}`}
+                      onClick={() => setMenuOpen(menuOpen === a.label ? null : a.label)}
+                      disabled={disabled || a.disabled}
+                      title={a.hint}
+                    >
+                      {a.label} <span className="pd-cmd-caret">▾</span>
+                    </button>
+                    {menuOpen === a.label && (
+                      <>
+                        <span className="pd-cmd-menu-scrim" onClick={() => setMenuOpen(null)} />
+                        <span className="pd-cmd-menu">
+                          {a.menu.map((m) => (
+                            <button
+                              key={m.label}
+                              className="pd-cmd-menuitem"
+                              onClick={() => { setMenuOpen(null); m.run() }}
+                              disabled={m.disabled}
+                              title={m.hint}
+                            >
+                              {m.label}
+                            </button>
+                          ))}
+                        </span>
+                      </>
+                    )}
+                  </span>
+                ) : (
+                  <button
+                    key={a.label}
+                    className="pd-cmd-job"
+                    onClick={a.run}
+                    disabled={disabled || a.disabled}
+                    title={a.hint}
+                  >
+                    {a.label}
+                  </button>
+                )
               ))}
               <span className="pd-cmd-bar-sep" />
               <button

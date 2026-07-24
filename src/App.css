@@ -1133,6 +1133,25 @@
 .pd-cmd-job:disabled { opacity: 0.4; cursor: not-allowed; }
 .pd-cmd-job.is-ask { color: var(--pd-green); }
 .pd-cmd-job.is-ask:hover:not(:disabled) { background: rgba(21,70,119,0.08); }
+.pd-cmd-job.is-open { background: #eef2f7; }
+.pd-cmd-caret { font-size: 9px; opacity: 0.6; margin-left: 1px; }
+
+/* The grouped "Gaps" dropdown: a small popover that floats above its button. */
+.pd-cmd-menuwrap { position: relative; display: inline-flex; }
+.pd-cmd-menu-scrim { position: fixed; inset: 0; z-index: 40; }
+.pd-cmd-menu {
+  position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 41;
+  display: flex; flex-direction: column; min-width: 148px; padding: 5px;
+  background: #fff; border: 1px solid #e0e6ee; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(19,42,74,0.16);
+}
+.pd-cmd-menuitem {
+  border: none; background: transparent; border-radius: 6px; text-align: left;
+  color: var(--pd-ink); font-size: 12px; font-weight: 600;
+  padding: 7px 10px; cursor: pointer; white-space: nowrap;
+}
+.pd-cmd-menuitem:hover:not(:disabled) { background: #eef2f7; }
+.pd-cmd-menuitem:disabled { opacity: 0.4; cursor: not-allowed; }
 .pd-cmd-bar-sep { width: 1px; align-self: stretch; background: #e6ebf1; margin: 3px 3px; }
 .pd-cmd-working {
   display: inline-flex; align-items: center; gap: 7px;

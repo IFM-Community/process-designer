@@ -963,11 +963,13 @@ function Canvas() {
     const laneBottom = laneTop(rows, active.laneLabels.length)
 
     // Gap-analysis box directly under the board (display-only, click-through).
-    if (active.analysis?.length) {
+    // "Hide gaps" removes the whole box, not just its text — so when collapsed we
+    // simply don't add the node. "Show gaps" in the dock brings it back.
+    if (active.analysis?.length && !active.analysisCollapsed) {
       structure.push({
         id: '__analysis', type: 'analysisBox',
         position: { x: 0, y: laneBottom + 28 },
-        data: { gaps: active.analysis, collapsed: !!active.analysisCollapsed },
+        data: { gaps: active.analysis },
         style: { width: w }, zIndex: 1, ...common,
       })
     }
@@ -2196,17 +2198,22 @@ function Canvas() {
                 actions={[
                   { label: '✦ Fill details', run: runFillDetails,
                     hint: "Rewrite every step's description, input, output and duration from the map as it now stands" },
-                  { label: active.analysis?.length ? '✦ Regenerate gaps' : '✦ Analyse gaps', run: runAnalysis,
-                    hint: 'Review the process against the seven angles and write concise, map-specific gaps' },
-                  // Gap controls live here (not on the box) — buttons inside a
-                  // React Flow node don't take a click reliably. They appear only
-                  // once there's an analysis to hide or edit.
-                  ...(active.analysis?.length ? [
-                    { label: active.analysisCollapsed ? '▸ Show gaps' : '▾ Hide gaps', run: toggleAnalysisCollapsed,
-                      hint: 'Collapse the gap-analysis box down to its header, or bring it back' },
-                    { label: '✎ Edit gaps', run: openGapEditor,
-                      hint: 'Edit the gap-analysis text by hand' },
-                  ] : []),
+                  // Gap controls live in the dock (not on the box) — buttons inside
+                  // a React Flow node don't take a click reliably. Before an
+                  // analysis exists it's a single "Analyse" button; once it does,
+                  // it becomes a "Gaps" menu grouping Regenerate / Hide / Edit.
+                  active.analysis?.length
+                    ? { label: '✦ Gaps', hint: 'Gap-analysis controls',
+                        menu: [
+                          { label: '✦ Regenerate', run: runAnalysis,
+                            hint: 'Re-run the gap analysis against the map as it now stands' },
+                          { label: active.analysisCollapsed ? '▸ Show gaps' : '▾ Hide gaps', run: toggleAnalysisCollapsed,
+                            hint: 'Hide the whole gap-analysis box, or bring it back' },
+                          { label: '✎ Edit', run: openGapEditor,
+                            hint: 'Edit the gap-analysis text by hand' },
+                        ] }
+                    : { label: '✦ Analyse gaps', run: runAnalysis,
+                        hint: 'Review the process against the seven angles and write concise, map-specific gaps' },
                   { label: '⧉ Group into phases', run: runGroupPhases,
                     hint: 'Club the steps into 4-6 sequential stages' },
                 ]}

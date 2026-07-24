@@ -25,19 +25,15 @@ export function LaneBandNode({ data }) {
 export function AnalysisNode({ data }) {
   const { openGapEditor } = useContext(BoardContext)
   const lines = gapsToLines(data.gaps || [])
-  const collapsed = !!data.collapsed
   // Buttons inside a React Flow node don't reliably take a click, so the gap
-  // controls (Analyse / Hide / Edit) live in the command dock below the board.
-  // This box is display-only; double-click still opens the editor as a shortcut.
+  // controls (Regenerate / Hide / Edit) live in the ✦ Gaps menu in the command
+  // dock. This box is display-only; double-click still opens the editor.
   return (
-    <div className={`pd-analysis-box nodrag nopan ${collapsed ? 'is-collapsed' : ''}`}>
+    <div className="pd-analysis-box nodrag nopan">
       <div className="pd-analysis-head">
         <span className="pd-analysis-title">Gap analysis · areas of improvement</span>
-        {collapsed
-          ? <span className="pd-analysis-hint">{lines.length} line{lines.length === 1 ? '' : 's'} hidden · use the ✦ Gaps controls below</span>
-          : <span className="pd-analysis-hint">double-click to edit · controls in the dock below</span>}
+        <span className="pd-analysis-hint">double-click to edit · controls in the dock below</span>
       </div>
-      {!collapsed && (
       <div className="pd-analysis-list" onDoubleClick={openGapEditor}>
         {lines.map((line, i) => {
           const c = classifyLine(line)
@@ -64,7 +60,6 @@ export function AnalysisNode({ data }) {
         })}
         {!lines.length && <div className="pd-analysis-empty">No notes yet — use “✎ Edit gaps” above the board.</div>}
       </div>
-      )}
     </div>
   )
 }
