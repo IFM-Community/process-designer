@@ -105,6 +105,9 @@ db.exec(`
 // sessions predates studios, so add the column if an older DB is missing it.
 const hasStudioCol = db.prepare("SELECT 1 FROM pragma_table_info('sessions') WHERE name = 'studio_id'").get()
 if (!hasStudioCol) db.exec('ALTER TABLE sessions ADD COLUMN studio_id TEXT')
+// Workspace passwords arrived after the table existed.
+const hasPwCol = db.prepare("SELECT 1 FROM pragma_table_info('studios') WHERE name = 'password_hash'").get()
+if (!hasPwCol) db.exec('ALTER TABLE studios ADD COLUMN password_hash TEXT')
 
 const KEEP_REVISIONS = 40
 
@@ -139,6 +142,10 @@ const q = {
 
   insStudio: db.prepare('INSERT INTO studios (id, name, created_at) VALUES (?, ?, ?)'),
   studioById: db.prepare('SELECT * FROM studios WHERE id = ?'),
+  allStudios: db.prepare('SELECT id, name, password_hash, created_at FROM studios ORDER BY created_at ASC'),
+  setStudioPw: db.prepare('UPDATE studios SET password_hash = ? WHERE id = ?'),
+  delStudio: db.prepare('DELETE FROM studios WHERE id = ?'),
+  delStudioSessions: db.prepare('DELETE FROM sessions WHERE studio_id = ?'),
   renameStudio: db.prepare('UPDATE studios SET name = ? WHERE id = ?'),
 
   insMember: db.prepare('INSERT OR IGNORE INTO memberships (studio_id, user_id, role, created_at) VALUES (?, ?, ?, ?)'),
@@ -209,8 +216,31 @@ export async function createStudio(name, ownerUserId) {
 // for a link you hold. Existence of the id IS the access grant.
 export const getStudio = async (id) => {
   const s = q.studioById.get(id)
-  return s ? { id: s.id, name: s.name, processes: q.countProcesses.get(id).c } : null
+  return s ? { id: s.id, name: s.name, processes: q.countProcesses.get(id).c, locked: !!s.password_hash } : null
 }
+
+// Internal (never serialised to a client): includes the password hash.
+export const getStudioFull = async (id) => q.studioById.get(id) || null
+
+// The gallery: every workspace, oldest first, with a lock flag — names and counts
+// only — the hash never leaves the server.
+export const listAllStudios = async () =>
+  q.allStudios.all().map((s) => ({
+    id: s.id, name: s.name, processes: q.countProcesses.get(s.id).c, locked: !!s.password_hash,
+  }))
+
+export const setStudioPassword = async (id, hash) => { q.setStudioPw.run(hash || null, id); return { ok: true } }
+
+// Removes the workspace and its processes. Revisions are left behind on purpose —
+// they're the only undo for a workspace deleted by mistake.
+export const deleteStudio = async (id) => {
+  q.delStudioSessions.run(id)
+  q.delStudio.run(id)
+  return { ok: true }
+}
+
+export const getMetaValue = async (key) => q.getMeta.get(key)?.value ?? null
+export const setMetaValue = async (key, value) => { q.setMeta.run(key, String(value)); return { ok: true } }
 
 export const listStudios = async (userId) =>
   q.studiosForUser.all(userId).map((s) => ({ ...s, processes: q.countProcesses.get(s.id).c }))

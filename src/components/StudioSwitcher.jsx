@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom'
 // accounts), and switching workspaces changes the address bar to that workspace's
 // link.
 
-export default function StudioSwitcher({ workspaces = [], currentId, currentName, onOpen, onCreate, onRename }) {
+export default function StudioSwitcher({ workspaces = [], currentId, currentName, onOpen, onCreate, onRename, onSetPassword, onDelete, onGallery }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const wrapRef = useRef(null)
@@ -44,7 +44,25 @@ export default function StudioSwitcher({ workspaces = [], currentId, currentName
 
   const create = () => {
     const name = window.prompt('Name the new workspace')
-    if (name?.trim()) onCreate(name.trim())
+    if (!name?.trim()) { setOpen(false); return }
+    const pw = window.prompt('Set a password? (leave empty for none — anyone with the link can enter)') || ''
+    onCreate(name.trim(), pw.trim() || undefined)
+    setOpen(false)
+  }
+
+  const setPassword = () => {
+    const pw = window.prompt(
+      'Set a new password for this workspace.\n\nLeave EMPTY to remove the password (anyone with the link can enter).',
+    )
+    if (pw === null) { setOpen(false); return } // cancelled
+    onSetPassword(currentId, pw.trim())
+    setOpen(false)
+  }
+
+  const del = () => {
+    if (window.confirm(`Delete workspace “${currentName}” and every process in it?\n\nThis cannot be undone from the app (revisions stay in the database).`)) {
+      onDelete(currentId)
+    }
     setOpen(false)
   }
   const rename = () => {
@@ -91,8 +109,12 @@ export default function StudioSwitcher({ workspaces = [], currentId, currentName
           ))}
 
           <div className="pd-menu-sep" />
+          <button className="pd-studio-act" onClick={() => { setOpen(false); onGallery() }}>▤ All workspaces</button>
           <button className="pd-studio-act" onClick={rename}>Rename this workspace…</button>
+          <button className="pd-studio-act" onClick={setPassword}>Set / change password…</button>
           <button className="pd-studio-act" onClick={create}>＋ New workspace…</button>
+          <div className="pd-menu-sep" />
+          <button className="pd-studio-act is-danger" onClick={del}>Delete workspace…</button>
         </div>,
         document.body,
       )}

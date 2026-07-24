@@ -1697,3 +1697,42 @@
 .pd-studio-share-text { display: flex; flex-direction: column; min-width: 0; }
 .pd-studio-share-text strong { font-size: 13px; color: var(--pd-green); }
 .pd-studio-share-text span { font-size: 11px; color: #8494a6; line-height: 1.3; }
+
+/* ============ Workspace gallery (the front door at /) =============== */
+.pd-gallery {
+  position: fixed; inset: 0; overflow-y: auto;
+  background: linear-gradient(160deg, #eef2f7 0%, #e3e9f1 100%);
+}
+.pd-gallery-inner { max-width: 980px; margin: 0 auto; padding: 64px 32px 80px; }
+.pd-gallery-inner.is-narrow { max-width: 420px; }
+.pd-gallery-head { text-align: center; margin-bottom: 36px; }
+.pd-gallery-mark { font-size: 34px; color: var(--pd-green); }
+.pd-gallery-head h1 { margin: 10px 0 4px; font-size: 26px; color: var(--pd-green); }
+.pd-gallery-head p { margin: 0; font-size: 14.5px; color: #64748b; }
+.pd-gallery-loading, .pd-gallery-error { text-align: center; color: #64748b; padding: 30px; }
+.pd-gallery-error { color: #a4342f; }
+.pd-gallery-grid {
+  display: grid; gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+.pd-ws-card {
+  display: flex; flex-direction: column; gap: 6px; text-align: left;
+  padding: 20px 20px 18px; background: #fff; border: 1px solid #e3e9f0; border-radius: 14px;
+  cursor: pointer; transition: transform 0.13s ease, box-shadow 0.13s ease, border-color 0.13s ease;
+}
+.pd-ws-card:hover {
+  transform: translateY(-3px); border-color: #cfdae7;
+  box-shadow: 0 12px 28px rgba(12, 41, 69, 0.13);
+}
+.pd-ws-card-top { display: flex; align-items: center; justify-content: space-between; }
+.pd-ws-card-ico { font-size: 18px; color: var(--pd-green); }
+.pd-ws-card-lock { font-size: 13px; }
+.pd-ws-card-name { font-size: 16.5px; font-weight: 700; color: var(--pd-green); margin-top: 6px; }
+.pd-ws-card-meta { font-size: 12px; color: #93a3b6; }
+.pd-ws-card.is-new { border-style: dashed; background: rgba(255, 255, 255, 0.6); }
+.pd-ws-card.is-new:hover { background: #fff; }
+.pd-ws-card-plus { font-size: 20px; color: var(--pd-green); }
+.pd-unlock-box { display: flex; flex-direction: column; gap: 12px; background: #fff; padding: 24px; border-radius: 14px; box-shadow: 0 12px 34px rgba(12, 41, 69, 0.12); }
+.pd-gallery-back { border: 0; background: none; color: #5b6b7f; font-size: 13px; cursor: pointer; padding: 4px; }
+.pd-gallery-back:hover { color: var(--pd-green); }
+.pd-studio-act.is-danger { color: #a4342f; }

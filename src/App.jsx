@@ -23,11 +23,13 @@ import { mapFromTable, analyzeGaps, fillDetails, groupIntoPhases, renamePhasesFr
 import { boardToSvg } from './lib/exportSvg'
 import {
   readMirror, writeMirror, mirrorIsDirty, fetchState, saveState, deleteSessionOnServer,
-  createStudio, fetchStudio, renameStudioOnServer,
+  createStudio, fetchStudio, renameStudioOnServer, setWorkspacePassword,
+  deleteWorkspaceOnServer, unlockWorkspace, wsToken, setWsToken,
   knownWorkspaces, rememberWorkspace, forgetWorkspace,
   readLastStudio, writeLastStudio,
 } from './lib/store'
 import StudioSwitcher from './components/StudioSwitcher'
+import WorkspaceGallery, { UnlockScreen } from './components/WorkspaceGallery'
 import PresenterView from './components/PresenterView'
 import { BoardContext } from './context'
 import {
@@ -351,11 +353,12 @@ function Canvas() {
   const [geomV] = useState(init.geom ?? GEOM_V)
   const [sessions, setSessions] = useState(init.sessions)
   const [activeId, setActiveId] = useState(init.activeId)
-  // ---- Workspaces (link-shareable, no accounts) ----
-  const [boot, setBoot] = useState('loading')            // 'loading' | 'ready'
+  // ---- Workspaces (link-shareable, optional password) ----
+  const [boot, setBoot] = useState('loading')            // 'loading' | 'gallery' | 'locked' | 'ready'
   const [workspaces, setWorkspaces] = useState([])        // this browser's known workspaces
   const [studioId, setStudioId] = useState(null)
   const [wsName, setWsName] = useState('')                // current workspace name
+  const [lockedMeta, setLockedMeta] = useState(null)      // workspace awaiting its password
   const [autoConnect, setAutoConnect] = useState(true)
   const [info, setInfo] = useState(null)
   // Two SPACES, each with its own home — not one home with the library hanging
@@ -422,51 +425,48 @@ function Canvas() {
   const loadedRef = useRef(false)  // saving is enabled for the CURRENT studio
   const adoptedRef = useRef(false) // the DB's own state for this studio has been read
 
-  // Resolve which WORKSPACE to open — no login, just a link. Order:
-  //   1. a share link in the URL  (/s/<id>)  — opening someone's workspace
-  //   2. the one you had open last (localStorage)
-  //   3. the most recent workspace this browser knows
-  //   4. none of the above → create a fresh workspace so you're never stuck
-  // Each candidate is confirmed to still exist on the server before we commit.
+  // Commit to a workspace: remember it, load it, put its link in the address bar.
+  const enterWorkspace = useCallback((meta, { push = false } = {}) => {
+    rememberWorkspace(meta)
+    setWorkspaces(knownWorkspaces())
+    setStudioId(meta.id)
+    setWsName(meta.name || 'Workspace')
+    const path = `/s/${meta.id}`
+    if (window.location.pathname !== path) {
+      window.history[push ? 'pushState' : 'replaceState']({}, '', path)
+    }
+    setBoot('ready')
+  }, [])
+
+  // Boot. The bare domain (`/`) is the GALLERY — the front door listing every
+  // workspace. A share link (`/s/<id>`) goes straight to that workspace, via the
+  // password screen when it's locked and this browser holds no (valid) token.
   useEffect(() => {
     let cancelled = false
     const fromUrl = (window.location.pathname.match(/^\/s\/([^/]+)/) || [])[1] || null
-    const known = knownWorkspaces()
-    const nameOf = (id) => known.find((w) => w.id === id)?.name
+    if (!fromUrl) { setBoot('gallery'); return }
 
     ;(async () => {
-      const candidates = [...new Set([fromUrl, readLastStudio(), known[0]?.id].filter(Boolean))]
-      let chosen = null
-      let networkFailed = false
-      for (const id of candidates) {
-        try {
-          const meta = await fetchStudio(id) // null == 404 (genuinely gone)
-          if (meta) { chosen = meta; break }
-        } catch {
-          // NETWORK ERROR (or a 5xx) — the workspace almost certainly still exists,
-          // we just can't reach the server this instant. NEVER abandon a known id
-          // for a fresh empty workspace on a blip (that once stranded a whole
-          // library). Trust the id; the load effect and self-heal loop retry the DB.
-          networkFailed = true
-          chosen = { id, name: nameOf(id) || 'Workspace' }
-          break
-        }
+      let meta = null
+      try {
+        meta = await fetchStudio(fromUrl) // null == 404 (genuinely gone)
+      } catch {
+        // NETWORK ERROR — the workspace almost certainly still exists; NEVER
+        // abandon a known id on a blip (that once stranded a whole library).
+        // Trust the id; the load effect + self-heal loop retry the server.
+        const known = knownWorkspaces().find((w) => w.id === fromUrl)
+        if (!cancelled) enterWorkspace({ id: fromUrl, name: known?.name || 'Workspace' })
+        return
       }
-      // Mint a brand-new workspace ONLY on a definitive answer that none of the
-      // candidates exist (all 404, or there were none) — never on a network blip.
-      if (!chosen && !networkFailed) chosen = await createStudio('My workspace').catch(() => null)
       if (cancelled) return
-      if (!chosen) { setBoot('ready'); return }
-      rememberWorkspace(chosen)
-      setWorkspaces(knownWorkspaces())
-      setStudioId(chosen.id)
-      setWsName(chosen.name)
-      // The address bar IS the share link; back/forward move between workspaces.
-      if (fromUrl !== chosen.id) window.history.replaceState({}, '', `/s/${chosen.id}`)
-      setBoot('ready')
+      if (!meta) { setBoot('gallery'); return } // gone → pick another from the gallery
+      // Locked and no token in this browser → ask for the password first. (A stale
+      // token surfaces later as a 403, which also routes back to 'locked'.)
+      if (meta.locked && !wsToken(meta.id)) { setLockedMeta(meta); setBoot('locked'); return }
+      enterWorkspace(meta)
     })()
     return () => { cancelled = true }
-  }, [])
+  }, [enterWorkspace])
 
   // Load the current studio's library. Runs whenever the studio changes (including
   // a switch). Paints instantly from that studio's mirror, then reconciles with the
@@ -498,6 +498,14 @@ function Canvas() {
       })
       .catch((e) => {
         if (cancelled) return
+        if (e.status === 403) {
+          // Locked out — the token is stale (password changed) or missing. Do NOT
+          // treat as offline (that loop would hammer 403s); ask for the password.
+          setWsToken(studioId, null)
+          setLockedMeta({ id: studioId, name: wsName || 'Workspace' })
+          setBoot('locked')
+          return
+        }
         loadedRef.current = true // run on the mirror; the recovery loop reconciles
         setDbState('offline')
         console.warn('[process-designer] database unavailable —', e.message)
@@ -523,7 +531,15 @@ function Canvas() {
     const t = setTimeout(() => {
       saveState(state, studioId)
         .then(() => { writeMirror(studioId, state, { dirty: false }); setDbState('saved') })
-        .catch((e) => { setDbState('offline'); console.warn('[process-designer] save failed —', e.message) })
+        .catch((e) => {
+          if (e.status === 403) {
+            setWsToken(studioId, null)
+            setLockedMeta({ id: studioId, name: wsName || 'Workspace' })
+            setBoot('locked')
+            return
+          }
+          setDbState('offline'); console.warn('[process-designer] save failed —', e.message)
+        })
     }, 600)
     return () => clearTimeout(t)
   }, [sessions, activeId, geomV, studioId])
@@ -555,28 +571,54 @@ function Canvas() {
     if (id === studioId) return
     const meta = await fetchStudio(id).catch(() => null)
     if (!meta) { alert('That workspace no longer exists.'); forgetWorkspace(id); setWorkspaces(knownWorkspaces()); return }
-    rememberWorkspace(meta)
-    setWorkspaces(knownWorkspaces())
-    setStudioId(meta.id)
-    setWsName(meta.name)
-    window.history.pushState({}, '', `/s/${meta.id}`)
-  }, [studioId])
+    // Locked and this browser has no token for it → the password screen, exactly
+    // as if the share link had been opened cold.
+    if (meta.locked && !wsToken(meta.id)) { setLockedMeta(meta); setBoot('locked'); return }
+    enterWorkspace(meta, { push: true })
+  }, [studioId, enterWorkspace])
 
-  // Make a brand-new (empty) workspace and jump into it.
-  const makeStudio = useCallback(async (name) => {
-    const ws = await createStudio(name)
-    rememberWorkspace(ws)
-    setWorkspaces(knownWorkspaces())
-    setStudioId(ws.id)
-    setWsName(ws.name)
-    window.history.pushState({}, '', `/s/${ws.id}`)
-  }, [])
+  // Make a brand-new (empty) workspace and jump into it. Password optional —
+  // empty means anyone with the link can enter.
+  const makeStudio = useCallback(async (name, password) => {
+    const ws = await createStudio(name, password || undefined)
+    enterWorkspace(ws, { push: true })
+  }, [enterWorkspace])
 
   const renameStudio = useCallback(async (id, name) => {
-    const meta = await renameStudioOnServer(id, name)
-    setWsName(meta.name)
-    rememberWorkspace(meta)
-    setWorkspaces(knownWorkspaces())
+    try {
+      const meta = await renameStudioOnServer(id, name)
+      setWsName(meta.name)
+      rememberWorkspace(meta)
+      setWorkspaces(knownWorkspaces())
+    } catch (e) {
+      // A silent failure here once read as "the button does nothing".
+      alert(`Could not rename the workspace: ${e.message || e}`)
+    }
+  }, [])
+
+  // Set / change / clear this workspace's password. Clearing makes it open again.
+  const changeWorkspacePassword = useCallback(async (id, password) => {
+    try {
+      await setWorkspacePassword(id, password)
+      alert(password
+        ? 'Password set. Everyone opening this workspace now needs it (existing browsers are signed in until the password changes again).'
+        : 'Password removed — anyone with the link can enter.')
+    } catch (e) {
+      alert(`Could not change the password: ${e.message || e}`)
+    }
+  }, [])
+
+  // Delete the whole workspace (its processes go with it; revisions stay in the
+  // database as the emergency undo). Then back to the gallery.
+  const removeWorkspace = useCallback(async (id) => {
+    try {
+      await deleteWorkspaceOnServer(id)
+      forgetWorkspace(id)
+      setWsToken(id, null)
+      window.location.href = '/'
+    } catch (e) {
+      alert(`Could not delete the workspace: ${e.message || e}`)
+    }
   }, [])
 
   // Following the browser's back/forward between workspace links.
@@ -1809,10 +1851,22 @@ function Canvas() {
     </div>
   )
 
-  // Nothing renders until a workspace has been resolved (no login gate anymore —
-  // this is just the brief moment while we confirm which workspace to open).
+  // Nothing renders until we know where we are: the gallery at `/`, a password
+  // screen for a locked link, or the workspace itself.
   if (boot === 'loading') {
     return <div className="pd-boot"><span className="pd-boot-mark">◆</span></div>
+  }
+  if (boot === 'gallery') {
+    return <WorkspaceGallery onEnter={(ws) => enterWorkspace(ws, { push: true })} />
+  }
+  if (boot === 'locked' && lockedMeta) {
+    return (
+      <UnlockScreen
+        meta={lockedMeta}
+        onUnlocked={() => { const m = lockedMeta; setLockedMeta(null); enterWorkspace(m) }}
+        onBack={() => { setLockedMeta(null); window.history.replaceState({}, '', '/'); setBoot('gallery') }}
+      />
+    )
   }
 
   const studioBar = (
@@ -1823,6 +1877,9 @@ function Canvas() {
       onOpen={openWorkspace}
       onCreate={makeStudio}
       onRename={renameStudio}
+      onSetPassword={changeWorkspacePassword}
+      onDelete={removeWorkspace}
+      onGallery={() => { window.location.href = '/' }}
     />
   )
 

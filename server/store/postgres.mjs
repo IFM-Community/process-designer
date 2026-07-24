@@ -74,6 +74,7 @@ export async function init() {
       name       text NOT NULL DEFAULT 'Studio',
       created_at text NOT NULL
     );
+    ALTER TABLE studios ADD COLUMN IF NOT EXISTS password_hash text;
     CREATE TABLE IF NOT EXISTS memberships (
       studio_id  text NOT NULL,
       user_id    text NOT NULL,
@@ -134,10 +135,42 @@ export async function createStudio(name, ownerUserId) {
 
 // Public metadata for a workspace, by id — what the switcher shows for a link.
 export const getStudio = async (id) => {
-  const s = await one('SELECT id, name FROM studios WHERE id = $1', [id])
+  const s = await one('SELECT id, name, password_hash FROM studios WHERE id = $1', [id])
   if (!s) return null
   const c = await one('SELECT COUNT(*)::int AS c FROM sessions WHERE studio_id = $1', [id])
-  return { id: s.id, name: s.name, processes: c?.c ?? 0 }
+  return { id: s.id, name: s.name, processes: c?.c ?? 0, locked: !!s.password_hash }
+}
+
+// Internal (never serialised to a client): includes the password hash.
+export const getStudioFull = async (id) => one('SELECT * FROM studios WHERE id = $1', [id])
+
+// The gallery: every workspace, oldest first — names, counts and a lock flag
+// only; the hash never leaves the server.
+export const listAllStudios = async () => {
+  const rows = await all(
+    `SELECT s.id, s.name, s.password_hash,
+            (SELECT COUNT(*)::int FROM sessions x WHERE x.studio_id = s.id) AS processes
+     FROM studios s ORDER BY s.created_at ASC`)
+  return rows.map((s) => ({ id: s.id, name: s.name, processes: s.processes, locked: !!s.password_hash }))
+}
+
+export const setStudioPassword = async (id, hash) => {
+  await q('UPDATE studios SET password_hash = $1 WHERE id = $2', [hash || null, id])
+  return { ok: true }
+}
+
+// Removes the workspace and its processes. Revisions stay — they're the only undo
+// for a workspace deleted by mistake.
+export const deleteStudio = async (id) => {
+  await q('DELETE FROM sessions WHERE studio_id = $1', [id])
+  await q('DELETE FROM studios WHERE id = $1', [id])
+  return { ok: true }
+}
+
+export const getMetaValue = async (key) => (await one('SELECT value FROM meta WHERE key = $1', [key]))?.value ?? null
+export const setMetaValue = async (key, value) => {
+  await q(`INSERT INTO meta (key, value) VALUES ($1,$2) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [key, String(value)])
+  return { ok: true }
 }
 
 export async function listStudios(userId) {
