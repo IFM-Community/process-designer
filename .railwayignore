@@ -1,0 +1,9 @@
+# Never upload these to the build context.
+node_modules
+dist
+data
+.env
+.env.local
+*.local
+.git
+skills/mbzuai-branding
