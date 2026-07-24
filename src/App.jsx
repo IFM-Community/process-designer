@@ -432,22 +432,36 @@ function Canvas() {
     let cancelled = false
     const fromUrl = (window.location.pathname.match(/^\/s\/([^/]+)/) || [])[1] || null
     const known = knownWorkspaces()
+    const nameOf = (id) => known.find((w) => w.id === id)?.name
 
     ;(async () => {
-      const candidates = [fromUrl, readLastStudio(), known[0]?.id].filter(Boolean)
+      const candidates = [...new Set([fromUrl, readLastStudio(), known[0]?.id].filter(Boolean))]
       let chosen = null
+      let networkFailed = false
       for (const id of candidates) {
-        const meta = await fetchStudio(id).catch(() => null)
-        if (meta) { chosen = meta; break }
+        try {
+          const meta = await fetchStudio(id) // null == 404 (genuinely gone)
+          if (meta) { chosen = meta; break }
+        } catch {
+          // NETWORK ERROR (or a 5xx) — the workspace almost certainly still exists,
+          // we just can't reach the server this instant. NEVER abandon a known id
+          // for a fresh empty workspace on a blip (that once stranded a whole
+          // library). Trust the id; the load effect and self-heal loop retry the DB.
+          networkFailed = true
+          chosen = { id, name: nameOf(id) || 'Workspace' }
+          break
+        }
       }
-      if (!chosen) chosen = await createStudio('My workspace').catch(() => null)
-      if (cancelled || !chosen) return
+      // Mint a brand-new workspace ONLY on a definitive answer that none of the
+      // candidates exist (all 404, or there were none) — never on a network blip.
+      if (!chosen && !networkFailed) chosen = await createStudio('My workspace').catch(() => null)
+      if (cancelled) return
+      if (!chosen) { setBoot('ready'); return }
       rememberWorkspace(chosen)
       setWorkspaces(knownWorkspaces())
       setStudioId(chosen.id)
       setWsName(chosen.name)
-      // Reflect the workspace in the URL without reloading, so the address bar is
-      // the share link and back/forward move between workspaces.
+      // The address bar IS the share link; back/forward move between workspaces.
       if (fromUrl !== chosen.id) window.history.replaceState({}, '', `/s/${chosen.id}`)
       setBoot('ready')
     })()
