@@ -622,6 +622,14 @@ function Canvas() {
     }
   }, [])
 
+  // Forget this browser's access token for a workspace — the next entry will ask
+  // for the password again (if it has one). Useful on a shared computer, and the
+  // way to prove the password actually gates access.
+  const signOutWorkspace = useCallback((id) => {
+    setWsToken(id, null)
+    window.location.href = '/'
+  }, [])
+
   // Delete the whole workspace (its processes go with it; revisions stay in the
   // database as the emergency undo). Then back to the gallery.
   const removeWorkspace = useCallback(async (id) => {
@@ -921,8 +929,9 @@ function Canvas() {
     patchActive((s) => ({ ...s, analysisCollapsed: !s.analysisCollapsed }))
   }, [patchActive])
 
+  const aiActionsRef = useRef({})
   const boardCtx = useMemo(
-    () => ({ setNodeLabel, setEdgeLabel, changeNodeType, setNodeSystem, setAnalysis, setInfo, openGapEditor, togglePhase, renamePhase, processRefs, openProcessRef, pickProcessRef: setRefPickerFor, toggleAnalysisCollapsed, setCalloutTail }),
+    () => ({ setNodeLabel, setEdgeLabel, changeNodeType, setNodeSystem, setAnalysis, setInfo, openGapEditor, togglePhase, renamePhase, processRefs, openProcessRef, pickProcessRef: setRefPickerFor, toggleAnalysisCollapsed, setCalloutTail, regenerateGaps: () => aiActionsRef.current?.runAnalysis?.(), analysisBusy: busy[activeId] === 'analyzing' }),
     [setNodeLabel, setEdgeLabel, changeNodeType, setNodeSystem, setAnalysis, openGapEditor, togglePhase, renamePhase, processRefs, openProcessRef, toggleAnalysisCollapsed, setCalloutTail],
   )
 
@@ -1552,10 +1561,20 @@ function Canvas() {
   // and stores live on the map, not in the table.
   const rows = useMemo(
     () =>
-      boardToRows(active.nodes, active.laneLabels, rowsOf(active)).filter(
-        (r) => !['startEnd', 'dataObject', 'database'].includes(r.type),
-      ),
-    [active.nodes, active.laneLabels],
+      boardToRows(active.nodes, active.laneLabels, rowsOf(active))
+        .filter(
+          // A callout is an annotation, not a step — it never belongs in the
+          // procedure table (nor do start/end or data artefacts).
+          (r) => !['startEnd', 'dataObject', 'database', 'callout'].includes(r.type),
+        )
+        .map((r) => {
+          // A referenced process shows the code of the process it POINTS AT, not a
+          // stale step number left in its data — same as the box does on the map.
+          if (r.type !== 'referencedProcess') return r
+          const code = r.data?.refId ? processRefs.get(r.data.refId)?.code : ''
+          return { ...r, data: { ...r.data, numbering: code || '' } }
+        }),
+    [active.nodes, active.laneLabels, processRefs],
   )
 
   // Presenter view: two aligned SVGs (fixed owner column + scrollable body),
@@ -1806,6 +1825,10 @@ function Canvas() {
     }
   }, [rows, activeId, active.title, currentSpec, patchSession, snapshot, fitView, beginAI, endAI])
 
+  // Expose the AI actions to the board nodes (the gap box's Regenerate) without a
+  // temporal-dead-zone reference — boardCtx is built above where these are defined.
+  aiActionsRef.current.runAnalysis = runAnalysis
+
   const clearAnalysis = useCallback(() => {
     snapshot()
     patchActive((s) => ({ ...s, analysis: null }))
@@ -1894,6 +1917,7 @@ function Canvas() {
       onSetPassword={changeWorkspacePassword}
       onDelete={removeWorkspace}
       onGallery={() => { window.location.href = '/' }}
+      onSignOut={signOutWorkspace}
     />
   )
 
@@ -2147,6 +2171,7 @@ function Canvas() {
               onReorderPhase={reorderPhase}
               naming={busy[activeId] === 'naming'}
               busy={busy[activeId] === 'grouping'}
+              onStop={() => stopAI(activeId)}
             />
           ) : view === 'map' ? (
             <>
@@ -2171,8 +2196,17 @@ function Canvas() {
                 actions={[
                   { label: '✦ Fill details', run: runFillDetails,
                     hint: "Rewrite every step's description, input, output and duration from the map as it now stands" },
-                  { label: '✦ Analyse gaps', run: runAnalysis,
+                  { label: active.analysis?.length ? '✦ Regenerate gaps' : '✦ Analyse gaps', run: runAnalysis,
                     hint: 'Review the process against the seven angles and write concise, map-specific gaps' },
+                  // Gap controls live here (not on the box) — buttons inside a
+                  // React Flow node don't take a click reliably. They appear only
+                  // once there's an analysis to hide or edit.
+                  ...(active.analysis?.length ? [
+                    { label: active.analysisCollapsed ? '▸ Show gaps' : '▾ Hide gaps', run: toggleAnalysisCollapsed,
+                      hint: 'Collapse the gap-analysis box down to its header, or bring it back' },
+                    { label: '✎ Edit gaps', run: openGapEditor,
+                      hint: 'Edit the gap-analysis text by hand' },
+                  ] : []),
                   { label: '⧉ Group into phases', run: runGroupPhases,
                     hint: 'Club the steps into 4-6 sequential stages' },
                 ]}

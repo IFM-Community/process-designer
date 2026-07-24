@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { phasesOf, phaseIdOf, GROUPABLE, PHASE_COLORS, colorOf, branchLabels } from '../lib/phases'
 
 // The Phases view — the process as 4-6 stages, and the place you SHAPE them.
@@ -94,10 +94,23 @@ function StepRow({ s, laneOf, branch, dragging, selected, onSelect, onDragStart,
   )
 }
 
+// A visible clock for the 2-4 minute AI actions, so "Grouping…" doesn't read as a
+// hang, plus a Stop — mirrors the command dock.
+function useElapsed(active) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    if (!active) { setN(0); return }
+    const t = setInterval(() => setN((x) => x + 1), 1000)
+    return () => clearInterval(t)
+  }, [active])
+  return `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`
+}
+
 export default function PhasesView({
   session, laneOf, onRename, onGroup, onAssign, onAddPhase, onDeletePhase, onRecolor,
-  onRenameAll, onReorderPhase, naming, busy,
+  onRenameAll, onReorderPhase, naming, busy, onStop,
 }) {
+  const clock = useElapsed(busy || naming)
   const phases = phasesOf(session)
   const [zoom, setZoom] = useState(1) // the board is plain DOM, so zoom is a scale
   const [dragOver, setDragOver] = useState(null)
@@ -150,8 +163,11 @@ export default function PhasesView({
           “① … → ② … → ③ …”. You can then rename any stage and drag steps between them.
         </p>
         <button className="pd-generate-btn" onClick={onGroup} disabled={busy}>
-          {busy ? 'Grouping…' : '⧉ Group into phases'}
+          {busy ? `Grouping… ${clock}` : '⧉ Group into phases'}
         </button>
+        {busy && onStop && (
+          <button className="pd-cmd-stop" style={{ marginTop: 10 }} onClick={onStop} title="Stop grouping">◼ Stop</button>
+        )}
       </div>
     )
   }
@@ -216,8 +232,11 @@ export default function PhasesView({
           disabled={busy || naming}
           title="Ask the AI to group the steps again from scratch — this REPLACES your grouping."
         >
-          {busy ? 'Grouping…' : '⟳ Re-group'}
+          {busy ? `Grouping… ${clock}` : '⟳ Re-group'}
         </button>
+        {(busy || naming) && onStop && (
+          <button className="pd-cmd-stop" onClick={onStop} title="Stop this AI action">◼ Stop</button>
+        )}
       </div>
 
       <div

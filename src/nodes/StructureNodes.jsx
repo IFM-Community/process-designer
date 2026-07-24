@@ -23,23 +23,19 @@ export function LaneBandNode({ data }) {
 // become headings, "- point" lines become indented bullets, "Summary: detail"
 // bolds the part before the colon.
 export function AnalysisNode({ data }) {
-  const { openGapEditor, toggleAnalysisCollapsed } = useContext(BoardContext)
+  const { openGapEditor } = useContext(BoardContext)
   const lines = gapsToLines(data.gaps || [])
   const collapsed = !!data.collapsed
+  // Buttons inside a React Flow node don't reliably take a click, so the gap
+  // controls (Analyse / Hide / Edit) live in the command dock below the board.
+  // This box is display-only; double-click still opens the editor as a shortcut.
   return (
     <div className={`pd-analysis-box nodrag nopan ${collapsed ? 'is-collapsed' : ''}`}>
       <div className="pd-analysis-head">
-        <button
-          className="pd-analysis-toggle"
-          onClick={toggleAnalysisCollapsed}
-          title={collapsed ? 'Show the gap analysis' : 'Collapse the gap analysis'}
-        >
-          {collapsed ? '▸' : '▾'}
-        </button>
         <span className="pd-analysis-title">Gap analysis · areas of improvement</span>
         {collapsed
-          ? <span className="pd-analysis-hint">{lines.length} line{lines.length === 1 ? '' : 's'} hidden</span>
-          : <span className="pd-analysis-hint">double-click to edit</span>}
+          ? <span className="pd-analysis-hint">{lines.length} line{lines.length === 1 ? '' : 's'} hidden · use the ✦ Gaps controls below</span>
+          : <span className="pd-analysis-hint">double-click to edit · controls in the dock below</span>}
       </div>
       {!collapsed && (
       <div className="pd-analysis-list" onDoubleClick={openGapEditor}>

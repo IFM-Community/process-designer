@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom'
 // accounts), and switching workspaces changes the address bar to that workspace's
 // link.
 
-export default function StudioSwitcher({ workspaces = [], currentId, currentName, onOpen, onCreate, onRename, onSetPassword, onDelete, onGallery }) {
+export default function StudioSwitcher({ workspaces = [], currentId, currentName, onOpen, onCreate, onRename, onSetPassword, onDelete, onGallery, onSignOut }) {
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const wrapRef = useRef(null)
@@ -112,6 +112,7 @@ export default function StudioSwitcher({ workspaces = [], currentId, currentName
           <button className="pd-studio-act" onClick={() => { setOpen(false); onGallery() }}>▤ All workspaces</button>
           <button className="pd-studio-act" onClick={rename}>Rename this workspace…</button>
           <button className="pd-studio-act" onClick={setPassword}>Set / change password…</button>
+          <button className="pd-studio-act" onClick={() => { setOpen(false); onSignOut(currentId) }}>Sign out of this workspace</button>
           <button className="pd-studio-act" onClick={create}>＋ New workspace…</button>
           <div className="pd-menu-sep" />
           <button className="pd-studio-act is-danger" onClick={del}>Delete workspace…</button>
