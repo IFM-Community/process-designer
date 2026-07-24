@@ -30,6 +30,7 @@ import {
 } from './lib/store'
 import StudioSwitcher from './components/StudioSwitcher'
 import WorkspaceGallery, { UnlockScreen } from './components/WorkspaceGallery'
+import ViewBoundary from './components/ErrorBoundary'
 import PresenterView from './components/PresenterView'
 import { BoardContext } from './context'
 import {
@@ -79,6 +80,15 @@ function makeSession(title = 'Untitled process') {
 const GEOM_V = 3
 // How long an archived process is kept before it is really removed.
 const ARCHIVE_DAYS = 30
+
+// A stable, render-safe stand-in for "no process" — same shape a real session has,
+// so any code that reads active.nodes/laneLabels/etc. is safe even when there is
+// genuinely nothing loaded. Module-level so React sees one identity, not a new
+// object each render.
+const EMPTY_SESSION = {
+  id: '__empty__', title: '', laneLabels: ['Process Team'], laneRows: [1],
+  nodes: [], edges: [], phases: [], analysis: null,
+}
 const LANE_H_BY_GEOM = { 1: 104, 2: LANE_H } // lane height each stored version used
 
 function migrateGeometry(store) {
@@ -375,7 +385,11 @@ function Canvas() {
   const [presenting, setPresenting] = useState(false) // full-screen presenter view
   const [overflow, setOverflow] = useState(false)
 
-  const active = sessions.find((s) => s.id === activeId) || sessions[0]
+  // Never undefined: if sessions is momentarily empty (mid workspace-switch) or
+  // activeId points at a session that just vanished, fall back to a stable empty
+  // process rather than letting every `active.nodes` in render throw and blank the
+  // page. EMPTY_SESSION is module-level so its identity is stable across renders.
+  const active = sessions.find((s) => s.id === activeId) || sessions[0] || EMPTY_SESSION
 
   // ---- undo / redo (Ctrl/Cmd+Z, Ctrl/Cmd+Shift+Z) ----
   const stateRef = useRef({ sessions, activeId })
@@ -2102,6 +2116,7 @@ function Canvas() {
           })()}
 
           <div className="pd-canvas-body">
+          <ViewBoundary resetKey={`${view}:${activeId}`} onReset={() => setView('home')}>
           {view === 'reader' && readerSession ? (
             <Reader session={readerSession} onBack={() => { setReaderId(null); setView('library') }} />
           ) : view === 'library' ? (
@@ -2225,6 +2240,7 @@ function Canvas() {
               onDeleteRow={deleteRow}
             />
           )}
+          </ViewBoundary>
           </div>
         </div>
       </div>

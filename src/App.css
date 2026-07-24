@@ -1736,3 +1736,17 @@
 .pd-gallery-back { border: 0; background: none; color: #5b6b7f; font-size: 13px; cursor: pointer; padding: 4px; }
 .pd-gallery-back:hover { color: var(--pd-green); }
 .pd-studio-act.is-danger { color: #a4342f; }
+
+/* Crash screen (ErrorBoundary) — recoverable, never a blank page. */
+.pd-crash { display: flex; align-items: center; justify-content: center; height: 100%; padding: 24px; background: var(--pd-canvas); }
+.pd-crash-card { max-width: 480px; background: #fff; border: 1px solid #e3e9f0; border-radius: 16px; padding: 30px 32px; box-shadow: 0 16px 40px rgba(12,41,69,0.12); text-align: center; }
+.pd-crash-mark { font-size: 30px; color: #d08a1a; }
+.pd-crash-card h1 { margin: 10px 0 6px; font-size: 19px; color: var(--pd-green); }
+.pd-crash-card p { margin: 0; font-size: 14px; color: #5b6b7f; }
+.pd-crash-actions { display: flex; gap: 10px; justify-content: center; margin: 20px 0 6px; }
+.pd-crash-reload { padding: 9px 18px; border: 0; border-radius: 9px; background: var(--pd-green); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.pd-crash-reload:hover { background: #1b5490; }
+.pd-crash-ghost { padding: 9px 16px; border: 1px solid #d6dfe9; border-radius: 9px; background: #fff; color: #5b6b7f; font-size: 13px; font-weight: 600; cursor: pointer; }
+.pd-crash-detail { margin-top: 16px; text-align: left; }
+.pd-crash-detail summary { font-size: 12px; color: #93a3b6; cursor: pointer; }
+.pd-crash-detail pre { margin-top: 8px; max-height: 200px; overflow: auto; font-size: 10.5px; color: #8494a6; background: #f7f9fc; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
