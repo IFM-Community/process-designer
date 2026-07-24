@@ -1,0 +1,11 @@
+node_modules
+dist
+.DS_Store
+*.local
+.vite
+data
+
+# MBZUAI brand guidelines — internal material, kept on disk but never published.
+# The app filters this skill out of model prompts anyway (see isContentSkill in
+# src/lib/ai.js), so its absence from a clone changes nothing functionally.
+skills/mbzuai-branding/

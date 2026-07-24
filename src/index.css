@@ -1,0 +1,46 @@
+:root {
+  /* MBZUAI brand palette — Navy Blue + Sand (see mbzuai-branding skill).
+     Variable names kept from the original theme; only the values changed to
+     the brand colours, so every component re-themes at once. */
+  --pd-green: #154677;        /* Navy Blue — title bar, lane headers, sidebar */
+  --pd-green-dark: #0c2945;   /* Dark Navy Blue — sidebar top, deep accents */
+  --pd-green-header: #1a5488; /* Navy tint for header gradients */
+  --pd-teal: #154677;         /* interactive accent → Navy (borders, focus, decisions) */
+  --pd-teal-bright: #2f6fb0;  /* brighter Navy for hover/focus pops */
+  --pd-tan: #e5c687;          /* Sand — Start/End, primary accent */
+  --pd-tan-dark: #8a764d;     /* Dark Sand — borders on Sand */
+  --pd-sand-50: #f2e3c3;      /* Sand 50% tint */
+  --pd-sand-25: #f9f1e1;      /* Sand 25% tint */
+  --pd-navy-50: #8aa2bb;      /* Navy Blue 50% tint */
+  --pd-navy-25: #c5d1dd;      /* Navy Blue 25% tint */
+  --pd-accent-red: #b52529;   /* brand Red — automation flag + danger */
+  --pd-ink: #0c2945;          /* Dark Navy Blue — body text on white (AA) */
+  --pd-line: #24486f;         /* edge connectors — mid Navy */
+  --pd-canvas: #f3f5f8;       /* light cool neutral canvas */
+  --pd-panel: #ffffff;
+  --pd-muted: #5b6b7d;        /* Navy-tinted muted text */
+  /* Brand fonts: Aktiv Grotesk (fallback Aptos → system sans); Roboto Mono
+     look for data/codes (system mono fallback so exports stay consistent). */
+  --pd-font: 'Aktiv Grotesk', 'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --pd-mono: 'Roboto Mono', ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-family: var(--pd-font);
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  color: var(--pd-ink);
+  background: var(--pd-canvas);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}

@@ -1,0 +1,555 @@
+/* ---- Generic node frame ---- */
+.pd-node {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 90px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pd-node-body {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  text-align: center;
+}
+
+.pd-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pd-ink);
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
+}
+.pd-placeholder { color: var(--pd-muted); font-weight: 400; }
+
+.pd-label-input {
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  color: var(--pd-ink);
+  border: 1px solid var(--pd-teal);
+  border-radius: 4px;
+  padding: 2px 4px;
+  width: 92%;
+  resize: none;
+  outline: none;
+  background: #fff;
+}
+
+.pd-numbering {
+  font-family: var(--pd-mono); /* brand: Roboto Mono for data / codes */
+  font-size: 8.5px;
+  color: var(--pd-muted);
+  margin-bottom: 3px;
+  letter-spacing: 0.2px;
+}
+
+.pd-auto-flag {
+  position: absolute;
+  top: 4px;
+  right: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--pd-accent-red);
+  z-index: 3;
+}
+
+/* ---- Rectangle activities ---- */
+.pd-node--activity .pd-node-body,
+.pd-node--automatedActivity .pd-node-body,
+.pd-node--activitySystem .pd-node-body,
+.pd-node--automatedActivitySystem .pd-node-body {
+  background: #fff;
+  border: 1.5px solid var(--pd-ink);
+  border-radius: 2px;
+}
+.pd-node--activity.is-selected .pd-node-body,
+.pd-node--automatedActivity.is-selected .pd-node-body,
+.pd-node--activitySystem.is-selected .pd-node-body,
+.pd-node--automatedActivitySystem.is-selected .pd-node-body {
+  border-color: var(--pd-teal);
+  box-shadow: 0 0 0 2px rgba(47, 111, 176, 0.25);
+}
+/* Steps that name a system reserve room for the coloured band at the bottom. */
+.pd-node--activitySystem .pd-node-body,
+.pd-node--automatedActivitySystem .pd-node-body {
+  padding-bottom: 0;
+  justify-content: flex-start;
+  padding-top: 10px;
+}
+.pd-system-band {
+  align-self: stretch;
+  margin: 6px -12px 0;
+  padding: 4px 8px;
+  background: var(--pd-sand-50);
+  border-top: 1.5px solid var(--pd-tan-dark);
+  border-radius: 0 0 1px 1px;
+  font-family: var(--pd-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--pd-ink);
+  cursor: text;
+  min-height: 20px;
+}
+.pd-system-ph { color: var(--pd-tan-dark); font-weight: 400; }
+.pd-system-input {
+  align-self: stretch;
+  margin: 6px -12px 0;
+  padding: 4px 8px;
+  border: none;
+  border-top: 1.5px solid var(--pd-teal);
+  background: #fffbe9;
+  font-family: var(--pd-mono);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--pd-ink);
+  outline: none;
+  border-radius: 0 0 1px 1px;
+}
+
+/* ---- Start / End (stadium) ---- */
+/* Sand fill → Dark Navy text (brand AA rule for text on Sand). */
+.pd-node--startEnd .pd-node-body {
+  background: var(--pd-tan);
+  border: 1px solid var(--pd-tan-dark);
+  border-radius: 999px;
+  color: var(--pd-ink);
+}
+.pd-node--startEnd .pd-label { color: var(--pd-ink); }
+.pd-node--startEnd.is-selected .pd-node-body {
+  box-shadow: 0 0 0 2px rgba(47, 111, 176, 0.4);
+}
+
+/* ---- Referenced process (double border) ---- */
+.pd-node--referencedProcess .pd-node-body {
+  background: #fff;
+  border: 1.5px solid var(--pd-ink);
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 4.5px var(--pd-accent-red);
+}
+.pd-node--referencedProcess .pd-label {
+  color: var(--pd-accent-red);
+  font-size: 10.5px;
+}
+
+/* ---- SVG-based shapes (decision, database, data object) ---- */
+.pd-shape-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.pd-shape-svg polygon,
+.pd-shape-svg path {
+  fill: #fff;
+  stroke: var(--pd-teal);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+.pd-node--database .pd-shape-svg path { fill: var(--pd-tan); stroke: var(--pd-tan-dark); }
+.pd-node--database .pd-shape-svg .pd-shape-stroke { fill: none; }
+.pd-node--dataObject .pd-shape-svg path { stroke: var(--pd-teal); }
+.pd-node--decision .pd-label { color: var(--pd-teal); font-size: 11px; }
+.pd-node--database .pd-label { color: var(--pd-ink); }
+
+.is-selected .pd-shape-svg polygon,
+.is-selected .pd-shape-svg path { stroke-width: 2.5; }
+
+/* ---- Board title bar ---- */
+.pd-title-node {
+  width: 100%;
+  height: 100%;
+  background: var(--pd-green);
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+  border-radius: 3px 3px 0 0;
+  pointer-events: none;
+}
+.pd-title-node-text { color: #fff; font-size: 13px; font-weight: 700; }
+
+/* ---- Role lane ---- */
+/* React Flow sets pointer-events:none on non-draggable/non-selectable nodes,
+   which would block the header's owner-name input. Force it back on for the
+   lane header node so the input is clickable (the band stays click-through). */
+.react-flow__node-lane { pointer-events: auto !important; }
+
+/* Full-width visual band (click-through) */
+.pd-lane-band {
+  width: 100%;
+  height: 100%;
+  border-bottom: 1px solid var(--pd-teal);
+  background: transparent;
+}
+.pd-lane-band.is-alt { background: rgba(21, 70, 119, 0.045); }
+
+/* Interactive left header holding the owner name */
+.pd-lane-header {
+  width: 100%;
+  height: 100%;
+  background: var(--pd-green);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+}
+.pd-lane-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #e3ebf5;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  outline: none;
+  border-radius: 4px;
+  cursor: text;
+}
+.pd-lane-input::placeholder { color: #7286a0; }
+.pd-lane-input:hover { background: rgba(255, 255, 255, 0.08); }
+.pd-lane-input:focus { background: rgba(255, 255, 255, 0.14); }
+
+/* ---- Gap-analysis box (under the board) ---- */
+.pd-analysis-box {
+  width: 100%;
+  background: #fff;
+  border: 1.5px solid var(--pd-green);
+  border-left: 6px solid var(--pd-green);
+  border-radius: 4px;
+  padding: 14px 18px;
+  text-align: left;
+}
+.pd-analysis-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--pd-green);
+  margin-bottom: 8px;
+}
+.pd-analysis-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+/* Marker-free rows (a real "–" glyph, not a CSS list bullet) so the box
+   rasterises cleanly when exported to an image. */
+.pd-analysis-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--pd-ink);
+}
+.pd-analysis-dash { color: var(--pd-green); flex: 0 0 auto; }
+.pd-analysis-text { flex: 1 1 auto; }
+.pd-analysis-sum { font-weight: 700; color: var(--pd-green); }
+/* The gap between verdict and evidence is explicit, not a text-node space, so the
+   two runs can never end up drawn on top of each other. */
+.pd-analysis-sum + .pd-analysis-rest { margin-left: 0.4em; }
+.pd-analysis-empty { font-size: 12px; color: var(--pd-muted); }
+/* Outline: numbered headings + indented sub-bullets. */
+.pd-analysis-header {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--pd-green);
+  margin-top: 6px;
+}
+.pd-analysis-header:first-child { margin-top: 0; }
+.pd-analysis-item.is-sub { margin-left: 18px; }
+
+/* React Flow disables pointer events on non-interactive nodes; force them on so
+   the box is editable. */
+.react-flow__node-analysisBox { pointer-events: auto !important; }
+
+/* Keep the Edit button beside the title (the box is full-board-width, so a
+   right-aligned button ends up far off-screen). */
+.pd-analysis-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
+.pd-analysis-head .pd-analysis-title { margin-bottom: 0; }
+.pd-analysis-editbtn {
+  border: 1px solid #d5dde6;
+  background: #fff;
+  color: var(--pd-green);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.pd-analysis-editbtn:hover { border-color: var(--pd-teal); }
+
+/* Free-form editor */
+.pd-analysis-textarea {
+  width: 100%;
+  min-height: 140px;
+  resize: vertical;
+  font-family: var(--pd-font);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--pd-ink);
+  border: 1px solid var(--pd-teal);
+  border-radius: 6px;
+  padding: 8px 10px;
+  outline: none;
+  background: #fff;
+}
+.pd-analysis-textarea::placeholder { color: var(--pd-muted); }
+.pd-analysis-tip { font-size: 10.5px; color: var(--pd-muted); margin-top: 6px; }
+
+/* ---- Connection handles ---- */
+.pd-handle {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--pd-teal);
+  background: #fff;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.pd-node:hover .pd-handle,
+.is-selected .pd-handle { opacity: 1; }
+.pd-handle-target { background: var(--pd-teal); }
+.pd-handle-source { background: #fff; }
+
+/* ---- On-canvas shape-type picker ---- */
+.pd-shape-menu {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: #fff;
+  border: 1px solid #d5dde6;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.14);
+}
+.pd-shape-opt {
+  width: 34px;
+  height: 26px;
+  padding: 2px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.pd-shape-opt:hover { border-color: var(--pd-teal); background: #eef3f9; }
+.pd-shape-opt-glyph { width: 30px; height: 18px; }
+
+/* ---- Editable edge labels ---- */
+.pd-edge-label {
+  position: absolute;
+  pointer-events: all;
+  font-size: 11px;
+  font-weight: 600;
+}
+.pd-edge-text {
+  background: #fff;
+  color: var(--pd-ink);
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid #e4e9f0;
+  cursor: text;
+}
+.pd-edge-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--pd-muted);
+  border: 1px dashed #c2cbd8;
+  font-size: 11px;
+  /* Faintly visible at rest so you can SEE a line is labellable, instead of
+     having to discover it by hovering a 1.5px line. */
+  opacity: 0.35;
+  cursor: pointer;
+  transition: opacity 0.12s ease;
+}
+.react-flow__edge:hover .pd-edge-hint { opacity: 1; border-color: var(--pd-teal); color: var(--pd-teal); }
+/* The click-catcher: wide, invisible, and only the stroke is interactive. */
+.pd-edge-hit { pointer-events: stroke; cursor: pointer; }
+.react-flow__edge:hover .react-flow__edge-path { stroke-width: 2.5; }
+.pd-edge-input {
+  width: 64px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  border: 1px solid var(--pd-teal);
+  border-radius: 4px;
+  padding: 1px 4px;
+  outline: none;
+  background: #fff;
+}
+
+/* ---- Process brackets (phases) ---- */
+/* The bracket strip above the board. */
+.pd-phaseband {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 100%;
+  padding: 0 10px;
+  border-radius: 7px 7px 0 0;
+  background: var(--pd-sand-50, #f2e3c3);
+  border: 1px solid var(--pd-tan-dark);
+  border-bottom: 3px solid var(--pd-green);
+  color: var(--pd-ink);
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.pd-phaseband.is-collapsed { background: var(--pd-tan); }
+.pd-phaseband-toggle {
+  flex: none;
+  border: none;
+  background: transparent;
+  color: var(--pd-green);
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 4px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.pd-phaseband-toggle:hover { background: rgba(21, 70, 119, 0.14); }
+.pd-phaseband-label {
+  flex: 1 1 auto;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+}
+.pd-phaseband-input {
+  flex: 1 1 auto;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid var(--pd-green);
+  border-radius: 4px;
+  padding: 2px 5px;
+  background: #fff;
+  color: var(--pd-ink);
+  outline: none;
+  min-width: 0;
+}
+.pd-phaseband-count {
+  flex: none;
+  font-family: var(--pd-mono);
+  font-size: 9.5px;
+  color: var(--pd-tan-dark);
+}
+.pd-phaseband-warn { flex: none; font-size: 11px; color: var(--pd-accent-red); cursor: help; }
+
+/* A collapsed stage — spans every lane, because it belongs to all of them. */
+.pd-phaseblock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  text-align: center;
+  border-radius: 10px;
+  background: #fff;
+  border: 2px solid var(--pd-green);
+  box-shadow: 0 6px 18px rgba(12, 41, 69, 0.12);
+  cursor: pointer;
+}
+.pd-phaseblock:hover { background: #f7f9fc; }
+.pd-phaseblock-label { font-size: 15px; font-weight: 700; color: var(--pd-green); line-height: 1.3; }
+.pd-phaseblock-meta { font-family: var(--pd-mono); font-size: 10px; color: var(--pd-muted); }
+.pd-phaseblock-owners { font-size: 10.5px; color: var(--pd-muted); line-height: 1.4; max-width: 92%; }
+
+/* React Flow turns off pointer events on non-selectable nodes; these must click. */
+.react-flow__node-phaseBand,
+.react-flow__node-phaseBlock { pointer-events: auto !important; }
+
+/* The code on a reference shape belongs to the process it POINTS AT, so it is
+   styled as a link rather than as this process's own step numbering. */
+.pd-ref-code {
+  font-family: var(--pd-mono);
+  font-size: 8.5px;
+  letter-spacing: 0.4px;
+  color: var(--pd-accent-red);
+  text-align: center;
+  padding: 1px 4px;
+  cursor: pointer;
+  border-bottom: 1px dotted rgba(181, 37, 41, 0.4);
+  align-self: center;
+}
+.pd-ref-code:hover { color: #8c1c1f; border-bottom-style: solid; }
+.pd-ref-code.is-unset { color: #9aa7b5; border-bottom-color: #c9d4e0; font-style: italic; }
+.pd-shape-opt.is-wide { width: auto; padding: 0 8px; font-size: 11px; font-weight: 600; color: var(--pd-green); }
+.pd-shape-opt-sep { width: 1px; align-self: stretch; margin: 3px 3px; background: #e0e7ef; }
+
+/* Callout — an ANNOTATION pinned to the map, not a step in the flow. Sand bubble
+   with a tail so it reads as commentary; text is italic and a touch smaller than a
+   step label, because it is a remark about the process, not part of it. */
+.pd-node--callout .pd-node-body {
+  position: relative;
+  background: var(--pd-tan);
+  border: 1px solid var(--pd-tan-dark);
+  border-radius: 7px;
+  box-shadow: 2px 3px 7px rgba(12, 41, 69, 0.22);
+  padding: 10px 12px;
+  justify-content: center;
+}
+.pd-node--callout .pd-label {
+  font-size: 11.5px;
+  line-height: 1.45;
+  font-style: italic;
+  font-weight: 600;
+  color: #3f3312;
+  text-align: left;
+}
+/* The tail. Its direction is part of the data (data.tail), because a callout has
+   to be able to point at whatever it is commenting on — above, below, left or
+   right. Default bottom-right. */
+.pd-node--callout .pd-node-body::after {
+  content: '';
+  position: absolute;
+  width: 0; height: 0;
+  filter: drop-shadow(1px 2px 2px rgba(12, 41, 69, 0.18));
+}
+.pd-node--callout.tail-br .pd-node-body::after {
+  right: 16px; bottom: -13px;
+  border-left: 14px solid var(--pd-tan); border-bottom: 13px solid transparent;
+}
+.pd-node--callout.tail-bl .pd-node-body::after {
+  left: 16px; bottom: -13px;
+  border-right: 14px solid var(--pd-tan); border-bottom: 13px solid transparent;
+}
+.pd-node--callout.tail-tr .pd-node-body::after {
+  right: 16px; top: -13px;
+  border-left: 14px solid var(--pd-tan); border-top: 13px solid transparent;
+}
+.pd-node--callout.tail-tl .pd-node-body::after {
+  left: 16px; top: -13px;
+  border-right: 14px solid var(--pd-tan); border-top: 13px solid transparent;
+}
+/* An annotation isn't wired into the flow, so it offers no connection handles. */
+.pd-node--callout .react-flow__handle { display: none; }
+.pd-shape-opt.is-on { background: var(--pd-tan); color: #3f3312; }

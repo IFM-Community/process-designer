@@ -1,0 +1,102 @@
+.pd-table-wrap {
+  position: absolute;
+  inset: 52px 0 0 0;
+  overflow: auto;
+  background: var(--pd-canvas);
+  padding: 20px 24px 60px;
+}
+
+.pd-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  min-width: 900px;
+  background: #fff;
+  border: 1px solid #d5dde6;
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.pd-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--pd-green);
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 10px;
+  border-bottom: 2px solid var(--pd-green-dark);
+  white-space: nowrap;
+}
+
+.pd-table tbody tr:nth-child(even) { background: #f5f7fb; }
+.pd-table tbody td {
+  padding: 4px 6px;
+  border-bottom: 1px solid #e4e9f0;
+  vertical-align: top;
+}
+
+.pd-col-num { width: 132px; }
+.pd-col-act { width: 190px; }
+.pd-col-desc { width: auto; min-width: 280px; }
+.pd-col-resp { width: 168px; }
+.pd-col-io { width: 130px; }
+.pd-col-dur { width: 96px; }
+.pd-col-del { width: 34px; text-align: center; }
+
+.pd-cell {
+  width: 100%;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--pd-ink);
+  padding: 5px 6px;
+  border-radius: 5px;
+  outline: none;
+}
+.pd-cell:hover { border-color: #dde3ec; }
+.pd-cell:focus { border-color: var(--pd-teal); background: #fff; box-shadow: 0 0 0 2px rgba(46, 139, 127, 0.15); }
+.pd-cell-strong { font-weight: 600; }
+.pd-cell-select { cursor: pointer; }
+.pd-cell::placeholder { color: #98a2af; }
+
+/* Auto-growing cells: wrap and expand so every character stays visible */
+.pd-cell-auto {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.pd-row-del {
+  border: none;
+  background: transparent;
+  color: #aab4c2;
+  font-size: 12px;
+  padding: 4px;
+}
+.pd-row-del:hover { color: var(--pd-accent-red); }
+
+.pd-table-empty {
+  text-align: center;
+  color: var(--pd-muted);
+  padding: 26px;
+  font-style: italic;
+}
+
+.pd-table-add {
+  margin-top: 12px;
+  padding: 9px 16px;
+  border: 1px dashed #c2cbd8;
+  background: #fff;
+  color: var(--pd-ink);
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.pd-table-add:hover { border-color: var(--pd-teal); color: var(--pd-teal); }

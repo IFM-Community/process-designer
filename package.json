@@ -1,0 +1,31 @@
+{
+  "name": "process-designer",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite",
+    "dev:api": "node server/index.mjs",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server/prod.mjs"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.3.5",
+    "docx": "^9.7.1",
+    "pdfjs-dist": "^6.1.200",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  },
+  "allowScripts": {
+    "esbuild@0.21.5": true
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}
