@@ -122,11 +122,22 @@ export const ensureDefaultUser = () => upsertUser({ email: 'you@local', name: 'Y
 
 // ---- Studios & membership -------------------------------------------------
 export async function createStudio(name, ownerUserId) {
+  // ownerUserId optional — link-shareable workspaces are created ownerless.
   const id = uid('st')
   await q('INSERT INTO studios (id, name, created_at) VALUES ($1,$2,$3)', [id, name || 'Studio', now()])
-  await q(`INSERT INTO memberships (studio_id, user_id, role, created_at) VALUES ($1,$2,'owner',$3)
-           ON CONFLICT DO NOTHING`, [id, ownerUserId, now()])
+  if (ownerUserId) {
+    await q(`INSERT INTO memberships (studio_id, user_id, role, created_at) VALUES ($1,$2,'owner',$3)
+             ON CONFLICT DO NOTHING`, [id, ownerUserId, now()])
+  }
   return { id, name: name || 'Studio', role: 'owner' }
+}
+
+// Public metadata for a workspace, by id — what the switcher shows for a link.
+export const getStudio = async (id) => {
+  const s = await one('SELECT id, name FROM studios WHERE id = $1', [id])
+  if (!s) return null
+  const c = await one('SELECT COUNT(*)::int AS c FROM sessions WHERE studio_id = $1', [id])
+  return { id: s.id, name: s.name, processes: c?.c ?? 0 }
 }
 
 export async function listStudios(userId) {

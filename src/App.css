@@ -1685,3 +1685,15 @@
 }
 .pd-analysis-toggle:hover { color: #1b5490; }
 .pd-analysis-box.is-collapsed { padding-bottom: 6px; }
+
+/* Copy-share-link — the headline action in the workspace menu. */
+.pd-studio-share {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 10px 12px; margin-bottom: 2px; border: 0; border-radius: 9px; cursor: pointer;
+  background: #f2f7fc; color: var(--pd-green);
+}
+.pd-studio-share:hover { background: #e7f0f9; }
+.pd-studio-share-ico { font-size: 15px; flex: 0 0 auto; }
+.pd-studio-share-text { display: flex; flex-direction: column; min-width: 0; }
+.pd-studio-share-text strong { font-size: 13px; color: var(--pd-green); }
+.pd-studio-share-text span { font-size: 11px; color: #8494a6; line-height: 1.3; }

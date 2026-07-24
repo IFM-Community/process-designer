@@ -196,10 +196,20 @@ export const ensureDefaultUser = async () => upsertUser({ email: 'you@local', na
 // ---- Studios & membership -------------------------------------------------
 
 export async function createStudio(name, ownerUserId) {
+  // ownerUserId is optional now: the link-shareable model has no accounts, so a
+  // workspace is created ownerless. When a userId IS given (the old account flow),
+  // a membership is still recorded, so nothing that relied on it breaks.
   const id = uid('st')
   q.insStudio.run(id, name || 'Studio', now())
-  q.insMember.run(id, ownerUserId, 'owner', now())
+  if (ownerUserId) q.insMember.run(id, ownerUserId, 'owner', now())
   return { id, name: name || 'Studio', role: 'owner' }
+}
+
+// A workspace's public metadata, looked up by id — this is what the switcher shows
+// for a link you hold. Existence of the id IS the access grant.
+export const getStudio = async (id) => {
+  const s = q.studioById.get(id)
+  return s ? { id: s.id, name: s.name, processes: q.countProcesses.get(id).c } : null
 }
 
 export const listStudios = async (userId) =>

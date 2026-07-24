@@ -23,10 +23,10 @@ import { mapFromTable, analyzeGaps, fillDetails, groupIntoPhases, renamePhasesFr
 import { boardToSvg } from './lib/exportSvg'
 import {
   readMirror, writeMirror, mirrorIsDirty, fetchState, saveState, deleteSessionOnServer,
-  fetchMe, login as apiLogin, logout as apiLogout, createStudio as apiCreateStudio,
-  renameStudioOnServer, readLastStudio, writeLastStudio,
+  createStudio, fetchStudio, renameStudioOnServer,
+  knownWorkspaces, rememberWorkspace, forgetWorkspace,
+  readLastStudio, writeLastStudio,
 } from './lib/store'
-import LoginGate from './components/LoginGate'
 import StudioSwitcher from './components/StudioSwitcher'
 import PresenterView from './components/PresenterView'
 import { BoardContext } from './context'
@@ -351,10 +351,11 @@ function Canvas() {
   const [geomV] = useState(init.geom ?? GEOM_V)
   const [sessions, setSessions] = useState(init.sessions)
   const [activeId, setActiveId] = useState(init.activeId)
-  // ---- Auth + current studio ----
-  const [authState, setAuthState] = useState('loading') // 'loading' | 'out' | 'in'
-  const [me, setMe] = useState(null)                     // { user, studios }
+  // ---- Workspaces (link-shareable, no accounts) ----
+  const [boot, setBoot] = useState('loading')            // 'loading' | 'ready'
+  const [workspaces, setWorkspaces] = useState([])        // this browser's known workspaces
   const [studioId, setStudioId] = useState(null)
+  const [wsName, setWsName] = useState('')                // current workspace name
   const [autoConnect, setAutoConnect] = useState(true)
   const [info, setInfo] = useState(null)
   // Two SPACES, each with its own home — not one home with the library hanging
@@ -421,21 +422,35 @@ function Canvas() {
   const loadedRef = useRef(false)  // saving is enabled for the CURRENT studio
   const adoptedRef = useRef(false) // the DB's own state for this studio has been read
 
-  // Who am I? Resolve auth first — the board doesn't load until we know the user
-  // and their studio. 401 → show the login gate.
+  // Resolve which WORKSPACE to open — no login, just a link. Order:
+  //   1. a share link in the URL  (/s/<id>)  — opening someone's workspace
+  //   2. the one you had open last (localStorage)
+  //   3. the most recent workspace this browser knows
+  //   4. none of the above → create a fresh workspace so you're never stuck
+  // Each candidate is confirmed to still exist on the server before we commit.
   useEffect(() => {
     let cancelled = false
-    fetchMe()
-      .then((data) => {
-        if (cancelled) return
-        if (!data) { setAuthState('out'); return }
-        setMe(data)
-        const last = readLastStudio()
-        const pick = data.studios.find((s) => s.id === last)?.id || data.studios[0]?.id || null
-        setStudioId(pick)
-        setAuthState('in')
-      })
-      .catch(() => { if (!cancelled) setAuthState('out') })
+    const fromUrl = (window.location.pathname.match(/^\/s\/([^/]+)/) || [])[1] || null
+    const known = knownWorkspaces()
+
+    ;(async () => {
+      const candidates = [fromUrl, readLastStudio(), known[0]?.id].filter(Boolean)
+      let chosen = null
+      for (const id of candidates) {
+        const meta = await fetchStudio(id).catch(() => null)
+        if (meta) { chosen = meta; break }
+      }
+      if (!chosen) chosen = await createStudio('My workspace').catch(() => null)
+      if (cancelled || !chosen) return
+      rememberWorkspace(chosen)
+      setWorkspaces(knownWorkspaces())
+      setStudioId(chosen.id)
+      setWsName(chosen.name)
+      // Reflect the workspace in the URL without reloading, so the address bar is
+      // the share link and back/forward move between workspaces.
+      if (fromUrl !== chosen.id) window.history.replaceState({}, '', `/s/${chosen.id}`)
+      setBoot('ready')
+    })()
     return () => { cancelled = true }
   }, [])
 
@@ -444,7 +459,7 @@ function Canvas() {
   // DB — unless the mirror is DIRTY (an unsaved change the DB hasn't confirmed),
   // in which case the mirror wins and the save effect flushes it.
   useEffect(() => {
-    if (authState !== 'in' || !studioId) return
+    if (boot !== 'ready' || !studioId) return
     let cancelled = false
     loadedRef.current = false
     adoptedRef.current = false
@@ -474,7 +489,7 @@ function Canvas() {
         console.warn('[process-designer] database unavailable —', e.message)
       })
     return () => { cancelled = true }
-  }, [authState, studioId])
+  }, [boot, studioId])
 
   const latestState = useRef(null)
   latestState.current = { sessions, activeId, geom: geomV }
@@ -520,28 +535,45 @@ function Canvas() {
     return () => { stop = true; clearInterval(id) }
   }, [dbState, studioId])
 
-  // Signing in / out and switching studios.
-  const onLogin = useCallback(async (email, name) => {
-    const data = await apiLogin(email, name)
-    setMe(data)
-    const pick = data.studios[0]?.id || null
-    setStudioId(pick)
-    setAuthState('in')
-  }, [])
-  const onLogout = useCallback(async () => {
-    await apiLogout().catch(() => {})
-    setMe(null); setStudioId(null); setAuthState('out')
-  }, [])
-  const switchStudio = useCallback((id) => { if (id !== studioId) setStudioId(id) }, [studioId])
+  // Open a workspace (switch, or follow a share link). Confirms it exists, then
+  // updates the URL so the address bar is always the current workspace's link.
+  const openWorkspace = useCallback(async (id) => {
+    if (id === studioId) return
+    const meta = await fetchStudio(id).catch(() => null)
+    if (!meta) { alert('That workspace no longer exists.'); forgetWorkspace(id); setWorkspaces(knownWorkspaces()); return }
+    rememberWorkspace(meta)
+    setWorkspaces(knownWorkspaces())
+    setStudioId(meta.id)
+    setWsName(meta.name)
+    window.history.pushState({}, '', `/s/${meta.id}`)
+  }, [studioId])
+
+  // Make a brand-new (empty) workspace and jump into it.
   const makeStudio = useCallback(async (name) => {
-    const r = await apiCreateStudio(name)
-    setMe((m) => ({ ...m, studios: r.studios }))
-    setStudioId(r.studio.id)
+    const ws = await createStudio(name)
+    rememberWorkspace(ws)
+    setWorkspaces(knownWorkspaces())
+    setStudioId(ws.id)
+    setWsName(ws.name)
+    window.history.pushState({}, '', `/s/${ws.id}`)
   }, [])
+
   const renameStudio = useCallback(async (id, name) => {
-    const r = await renameStudioOnServer(id, name)
-    setMe((m) => ({ ...m, studios: r.studios }))
+    const meta = await renameStudioOnServer(id, name)
+    setWsName(meta.name)
+    rememberWorkspace(meta)
+    setWorkspaces(knownWorkspaces())
   }, [])
+
+  // Following the browser's back/forward between workspace links.
+  useEffect(() => {
+    const onPop = () => {
+      const id = (window.location.pathname.match(/^\/s\/([^/]+)/) || [])[1]
+      if (id && id !== studioId) openWorkspace(id)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [studioId, openWorkspace])
 
   useEffect(() => {
     const t = setTimeout(() => fitView({ padding: 0.15, duration: 300, minZoom: 0.2 }), 60)
@@ -1763,22 +1795,19 @@ function Canvas() {
     </div>
   )
 
-  // Auth gate: nothing of the app renders until we know who is signed in.
-  if (authState === 'loading') {
+  // Nothing renders until a workspace has been resolved (no login gate anymore —
+  // this is just the brief moment while we confirm which workspace to open).
+  if (boot === 'loading') {
     return <div className="pd-boot"><span className="pd-boot-mark">◆</span></div>
   }
-  if (authState === 'out') {
-    return <LoginGate onLogin={onLogin} />
-  }
 
-  const studioBar = me && (
+  const studioBar = (
     <StudioSwitcher
-      user={me.user}
-      studios={me.studios}
+      workspaces={workspaces}
       currentId={studioId}
-      onSwitch={switchStudio}
+      currentName={wsName}
+      onOpen={openWorkspace}
       onCreate={makeStudio}
-      onLogout={onLogout}
       onRename={renameStudio}
     />
   )
@@ -1827,8 +1856,6 @@ function Canvas() {
           onAutoConnect={setAutoConnect}
           info={info}
           setInfo={setInfo}
-          user={me?.user}
-          onLogout={onLogout}
           studioBar={studioBar}
         />
         )}

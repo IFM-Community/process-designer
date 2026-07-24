@@ -22,7 +22,7 @@ await impl.init()
 export const {
   DB_FILE,
   upsertUser, getUser, ensureDefaultUser,
-  createStudio, listStudios, membership, isMember, listMembers, renameStudio,
+  createStudio, getStudio, listStudios, membership, isMember, listMembers, renameStudio,
   createInvite, listInvites, claimInvites,
   createAuthSession, userForToken, endAuthSession,
   readState, writeState, deleteSession,

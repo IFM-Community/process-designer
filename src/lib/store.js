@@ -66,28 +66,40 @@ export async function deleteSessionOnServer(id, studio) {
   try { await fetch(`/api/session?id=${encodeURIComponent(id)}${studio ? `&studio=${encodeURIComponent(studio)}` : ''}`, { method: 'DELETE' }) } catch {}
 }
 
-// ---- Auth + studios -------------------------------------------------------
+// ---- Workspaces (link-shareable, no accounts) -----------------------------
 const asJson = async (res) => { if (!res.ok) { const e = new Error(`API ${res.status}`); e.status = res.status; throw e } return res.json() }
 
-// Who am I? 401 → not signed in (show the login gate).
-export async function fetchMe() {
-  const res = await fetch('/api/me')
-  if (res.status === 401) return null
+// Create a new workspace, get back { id, name }. Its share link is /s/<id>.
+export const createStudio = (name) =>
+  fetch('/api/studios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) })
+    .then(asJson).then((r) => r.studio)
+// Metadata for a workspace you hold a link to: { id, name, processes }. 404 → gone.
+export async function fetchStudio(id) {
+  const res = await fetch(`/api/studio?id=${encodeURIComponent(id)}`)
+  if (res.status === 404) return null
   return asJson(res)
 }
-export const login = (email, name) =>
-  fetch('/api/auth/mock-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, name }) }).then(asJson)
-export const logout = () => fetch('/api/auth/logout', { method: 'POST' }).then(asJson)
-export const createStudio = (name) =>
-  fetch('/api/studios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).then(asJson)
-export const fetchMembers = (studioId) =>
-  fetch(`/api/studios/${encodeURIComponent(studioId)}/members`).then(asJson).then((r) => r.members || [])
-export const inviteToStudio = (studioId, email, role) =>
-  fetch(`/api/studios/${encodeURIComponent(studioId)}/invites`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) }).then(asJson)
-export const renameStudioOnServer = (studioId, name) =>
-  fetch(`/api/studios/${encodeURIComponent(studioId)}/rename`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }).then(asJson)
+export const renameStudioOnServer = (id, name) =>
+  fetch('/api/studio/rename', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name }) }).then(asJson)
 
-// Which studio the user last had open, so a reload lands where they left off.
+// The workspaces THIS BROWSER knows about — there are no accounts, so the browser
+// remembers the ones you've created or opened a link to (like Excalidraw's recent
+// rooms). Each is { id, name }.
+const WS_KEY = 'pd.workspaces.v1'
+export function knownWorkspaces() {
+  try { return JSON.parse(localStorage.getItem(WS_KEY)) || [] } catch { return [] }
+}
+export function rememberWorkspace(ws) {
+  if (!ws?.id) return
+  const list = knownWorkspaces().filter((w) => w.id !== ws.id)
+  list.unshift({ id: ws.id, name: ws.name || 'Workspace' })
+  try { localStorage.setItem(WS_KEY, JSON.stringify(list)) } catch {}
+}
+export function forgetWorkspace(id) {
+  try { localStorage.setItem(WS_KEY, JSON.stringify(knownWorkspaces().filter((w) => w.id !== id))) } catch {}
+}
+
+// Which workspace was open last, so a bare reload lands where you left off.
 export const readLastStudio = () => { try { return localStorage.getItem('pd.studio') || null } catch { return null } }
 export const writeLastStudio = (id) => { try { localStorage.setItem('pd.studio', id || '') } catch {} }
 
