@@ -15,6 +15,7 @@ import { createServer } from 'node:http'
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
+import { Readable } from 'node:stream'
 import { handleApi } from './api.mjs'
 import { DB_FILE } from './db.mjs'
 
@@ -63,20 +64,40 @@ async function proxyK2(req, res, url) {
       method: req.method,
       headers: {
         'Content-Type': req.headers['content-type'] || 'application/json',
-        accept: 'application/json',
+        // Forward the caller's Accept so a streaming request stays streaming.
+        accept: req.headers['accept'] || 'application/json',
         Authorization: `Bearer ${K2_KEY}`,
       },
       body: req.method === 'GET' || req.method === 'HEAD' ? undefined : await rawBody(req),
     })
-    const buf = Buffer.from(await upstream.arrayBuffer())
+    // Stream the reply straight through instead of buffering it. A reasoning
+    // request takes 2-5 minutes; if we waited for the whole body and sent it only
+    // at the end (await arrayBuffer), the connection would sit silent and Railway's
+    // edge returns a 502 "Application failed to respond" before the answer lands.
+    // Forwarding the bytes as they arrive keeps the connection continuously active.
     res.writeHead(upstream.status, {
       'Content-Type': upstream.headers.get('content-type') || 'application/json',
-      'Content-Length': buf.length,
+      'Cache-Control': 'no-cache, no-transform',
+      // Tell any intermedi­ary proxy (nginx-style) not to buffer the stream.
+      'X-Accel-Buffering': 'no',
     })
-    res.end(buf)
+    if (upstream.body) {
+      const stream = Readable.fromWeb(upstream.body)
+      // If the client hangs up, stop pulling from the model.
+      res.on('close', () => stream.destroy())
+      stream.on('error', () => { try { res.end() } catch { /* already closed */ } })
+      stream.pipe(res)
+    } else {
+      res.end()
+    }
   } catch (e) {
-    res.writeHead(502, { 'Content-Type': 'application/json' })
-    res.end(JSON.stringify({ error: `model endpoint unreachable: ${e.message}` }))
+    // Headers may already be out (mid-stream failure) — only send a 502 if not.
+    if (!res.headersSent) {
+      res.writeHead(502, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: `model endpoint unreachable: ${e.message}` }))
+    } else {
+      try { res.end() } catch { /* already closed */ }
+    }
   }
 }
 

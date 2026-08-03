@@ -148,72 +148,114 @@ const TIMEOUT_MS = 8 * 60 * 1000
 
 async function callModel({ system, prompt, json = true, signal }) {
   // Never hang forever: without this a stalled request spins the button for good.
+  // The timer covers the WHOLE operation (the fetch AND the minutes of streaming
+  // that follow), so it is cleared once, in the finally at the very end.
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), TIMEOUT_MS)
   if (signal) signal.addEventListener('abort', () => ctl.abort(), { once: true })
 
-  let res
+  // A Stop, a timeout, and a genuine network drop all arrive here as thrown
+  // errors; translate the first two into their own messages, leave the rest.
+  const abortError = (e) => {
+    if (signal?.aborted) { const err = new Error('Stopped.'); err.aborted = true; return err }
+    if (e?.name === 'AbortError') return new Error(`The model did not answer within ${TIMEOUT_MS / 60000} minutes. Try a shorter description.`)
+    return null
+  }
+
   try {
-    res = await fetch(API_URL, {
-      method: 'POST',
-      signal: ctl.signal,
-      headers: { accept: 'application/json', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        // No max_tokens on purpose — see the note by TIMEOUT_MS. Omitting it lets
-        // the endpoint give the reply this model's full remaining context (512k),
-        // so a large map/edit is never truncated into unparseable JSON.
-        model: MODEL,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-      }),
-    })
-  } catch (e) {
-    if (e.name === 'AbortError') {
-      // Two ways the fetch aborts: the user pressed Stop, or the 8-minute timeout
-      // fired. Tell them apart so a deliberate Stop isn't reported as an error.
-      if (signal?.aborted) { const err = new Error('Stopped.'); err.aborted = true; throw err }
-      throw new Error(`The model did not answer within ${TIMEOUT_MS / 60000} minutes. Try a shorter description.`)
+    let res
+    try {
+      res = await fetch(API_URL, {
+        method: 'POST',
+        signal: ctl.signal,
+        headers: { accept: 'text/event-stream', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // stream:true is not cosmetic — it is what keeps this working in
+          // production. A call reasons for 2-5 minutes; if the whole reply is
+          // buffered and sent only at the very end, the hosting edge (Railway)
+          // sees a silent connection and returns a 502 "Application failed to
+          // respond" long before the answer arrives. Streaming pushes bytes
+          // continuously (the reasoning first, then the JSON token by token), so
+          // the connection stays visibly alive the entire time.
+          // No max_tokens on purpose — the endpoint then hands the reply this
+          // model's full remaining context (512k), so a large map/edit is never
+          // truncated into unparseable JSON.
+          model: MODEL,
+          stream: true,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt },
+          ],
+        }),
+      })
+    } catch (e) {
+      throw abortError(e) || new Error(`Could not reach the K2 Aurora endpoint (${e.message}). Is the dev server proxy running?`)
     }
-    throw new Error(`Could not reach the K2 Aurora endpoint (${e.message}). Is the dev server proxy running?`)
+
+    if (!res.ok) {
+      let detail = ''
+      try { detail = await res.text() } catch { detail = '' }
+      throw new Error(`API error ${res.status}: ${detail.slice(0, 300)}`)
+    }
+    // The /k2 proxy is configured in vite.config.js, which Vite reads ONCE at
+    // startup. A dev server that was already running when the proxy (or .env.local)
+    // was added has no /k2 route, so Vite's SPA fallback answers with index.html.
+    // Say that plainly instead of dying while trying to read it as a stream.
+    if ((res.headers.get('content-type') || '').includes('text/html')) {
+      throw new Error(
+        'The /k2 proxy is not active — the dev server answered with a page, not the API. ' +
+        'Restart the dev server (vite.config.js and .env.local are only read at startup).',
+      )
+    }
+    if (!res.body) throw new Error('The K2 endpoint returned no response stream.')
+
+    // Read the Server-Sent Events stream. Each frame is a `data: {…}` line; we
+    // accumulate the assistant's CONTENT deltas and ignore the reasoning deltas,
+    // which are the model thinking out loud and never part of the answer.
+    let text = ''
+    let finish = null
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    try {
+      for (;;) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        let nl
+        while ((nl = buf.indexOf('\n')) !== -1) {
+          const line = buf.slice(0, nl).trim()
+          buf = buf.slice(nl + 1)
+          if (!line.startsWith('data:')) continue
+          const payload = line.slice(5).trim()
+          if (payload === '[DONE]') continue
+          let obj
+          try { obj = JSON.parse(payload) } catch { continue }
+          // Some deployments stream an error object mid-stream instead of a chunk.
+          if (obj?.error) throw new Error(typeof obj.error === 'string' ? obj.error : (obj.error.message || 'stream error'))
+          const ch = obj?.choices?.[0]
+          if (ch?.delta?.content) text += ch.delta.content
+          if (ch?.finish_reason) finish = ch.finish_reason
+        }
+      }
+    } catch (e) {
+      throw abortError(e) || new Error(`Lost the connection to the K2 endpoint while streaming (${e.message}).`)
+    }
+
+    // Hit the token ceiling (should not happen without a max_tokens cap, but kept
+    // as a safety net). An incomplete reply must never reach the JSON parser — a
+    // half-written map parses as the useless "Could not parse the JSON".
+    if (finish === 'length') {
+      throw new Error(
+        text.trim()
+          ? 'The model’s answer was cut off before it finished — this change asks for too much in one pass. Split it into two smaller changes.'
+          : 'The model returned no answer. Try a shorter, simpler description.',
+      )
+    }
+    return json ? extractJson(text) : text
   } finally {
     clearTimeout(timer)
   }
-
-  if (!res.ok) {
-    let detail = ''
-    try { detail = JSON.stringify(await res.json()) } catch { detail = await res.text().catch(() => '') }
-    throw new Error(`API error ${res.status}: ${detail.slice(0, 300)}`)
-  }
-  // The /k2 proxy is configured in vite.config.js, which Vite reads ONCE at
-  // startup. A dev server that was already running when the proxy (or .env.local)
-  // was added has no /k2 route, so Vite's SPA fallback answers with index.html —
-  // a 200 that isn't JSON. Say that plainly instead of dying on a parse error.
-  const ctype = res.headers.get('content-type') || ''
-  if (!ctype.includes('json')) {
-    throw new Error(
-      'The /k2 proxy is not active — the dev server answered with a page, not the API. ' +
-      'Restart the dev server (vite.config.js and .env.local are only read at startup).',
-    )
-  }
-  const data = await res.json()
-  const choice = data?.choices?.[0]
-  const text = choice?.message?.content ?? ''
-  // Hit the token ceiling. The reply is INCOMPLETE either way, so never hand it to
-  // the JSON parser — a half-written map parses as the useless "Could not parse the
-  // JSON returned by the model", which hides the real cause. Two sub-cases, one
-  // clear message each:
-  //   · empty content  → the whole budget went to reasoning, nothing was written.
-  //   · partial content → the map was cut off mid-write (a big restructuring edit).
-  if (choice?.finish_reason === 'length') {
-    throw new Error(
-      text.trim()
-        ? 'The model’s answer was cut off before it finished — this change asks for too much in one pass. Split it into two smaller changes (e.g. add the new intake steps first, then the extension branch).'
-        : 'The model used its whole token budget reasoning and returned no answer. Try a shorter, simpler description.',
-    )
-  }
-  return json ? extractJson(text) : text
 }
 
 // The three calls that return a MAP all normalize + validate the result.
