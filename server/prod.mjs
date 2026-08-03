@@ -90,14 +90,37 @@ async function proxyK2(req, res, url) {
     // immediately (before the model has thought), so Railway's edge sees an active
     // response from the first millisecond and never returns its "Application failed
     // to respond" 502.
+    const ctype = upstreamRes.headers['content-type'] || 'application/json'
+    const isSSE = ctype.includes('event-stream')
     res.writeHead(upstreamRes.statusCode || 502, {
-      'Content-Type': upstreamRes.headers['content-type'] || 'application/json',
+      'Content-Type': ctype,
       'Cache-Control': 'no-cache, no-transform',
       // Tell any intermediary proxy (nginx-style) not to buffer the stream.
       'X-Accel-Buffering': 'no',
     })
-    upstreamRes.pipe(res)
-    upstreamRes.on('error', () => { try { res.end() } catch { /* already closed */ } })
+
+    // HEARTBEAT. The reasoning model is silent for minutes while it thinks, and an
+    // idle TCP connection is exactly what an intermediary (Railway's edge, a load
+    // balancer, a corporate proxy) drops. So while nothing is arriving from the
+    // model we send an SSE comment line every few seconds: the browser's parser
+    // ignores ':' comment lines, but the continuous trickle of bytes means NO layer
+    // ever sees the connection as idle. The timer is DEBOUNCED — reset on every real
+    // chunk — so a heartbeat can only fire during a genuine gap, never in the middle
+    // of a data frame. This is what keeps the connection live end-to-end with no
+    // timeout able to cut it.
+    let beat = null
+    const arm = () => {
+      if (!isSSE) return
+      clearTimeout(beat)
+      beat = setTimeout(() => { try { res.write(': keep-alive\n\n') } catch { /* closed */ } arm() }, 10000)
+    }
+    const disarm = () => clearTimeout(beat)
+
+    arm()
+    upstreamRes.on('data', (chunk) => { arm(); res.write(chunk) })
+    upstreamRes.on('end', () => { disarm(); try { res.end() } catch { /* closed */ } })
+    upstreamRes.on('close', disarm)
+    upstreamRes.on('error', () => { disarm(); try { res.end() } catch { /* already closed */ } })
   })
 
   // The whole point: no idle timeout on the upstream socket. A silent 5-minute
