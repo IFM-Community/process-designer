@@ -11,11 +11,11 @@
 //
 // Binds 0.0.0.0 on $PORT because a container's port must be reachable from outside.
 
-import { createServer } from 'node:http'
+import { createServer, request as httpRequest } from 'node:http'
+import { request as httpsRequest } from 'node:https'
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
-import { Readable } from 'node:stream'
 import { handleApi } from './api.mjs'
 import { DB_FILE } from './db.mjs'
 
@@ -58,47 +58,64 @@ async function proxyK2(req, res, url) {
     res.end(JSON.stringify({ error: 'K2_API_KEY is not set on the server' }))
     return
   }
-  const target = K2_URL + url.pathname.replace(/^\/k2/, '') + url.search
+  // Deliberately NOT using fetch() here. Node's fetch (undici) enforces a 300s
+  // bodyTimeout — if no response bytes arrive for 5 minutes it aborts. This is a
+  // reasoning model: it sends one chunk, then goes SILENT for minutes while it
+  // thinks, then bursts the answer. That silence trips undici's 300s timer and the
+  // request dies at ~302s ("Lost the connection … while streaming"). node's raw
+  // http/https request has no such default, and we disable the socket idle-timeout
+  // outright, so the connection survives the long silent think.
+  let body
   try {
-    const upstream = await fetch(target, {
-      method: req.method,
-      headers: {
-        'Content-Type': req.headers['content-type'] || 'application/json',
-        // Forward the caller's Accept so a streaming request stays streaming.
-        accept: req.headers['accept'] || 'application/json',
-        Authorization: `Bearer ${K2_KEY}`,
-      },
-      body: req.method === 'GET' || req.method === 'HEAD' ? undefined : await rawBody(req),
-    })
-    // Stream the reply straight through instead of buffering it. A reasoning
-    // request takes 2-5 minutes; if we waited for the whole body and sent it only
-    // at the end (await arrayBuffer), the connection would sit silent and Railway's
-    // edge returns a 502 "Application failed to respond" before the answer lands.
-    // Forwarding the bytes as they arrive keeps the connection continuously active.
-    res.writeHead(upstream.status, {
-      'Content-Type': upstream.headers.get('content-type') || 'application/json',
+    body = req.method === 'GET' || req.method === 'HEAD' ? undefined : await rawBody(req)
+  } catch (e) {
+    res.writeHead(400, { 'Content-Type': 'application/json' })
+    res.end(JSON.stringify({ error: `bad request body: ${e.message}` }))
+    return
+  }
+
+  const target = new URL(K2_URL + url.pathname.replace(/^\/k2/, '') + url.search)
+  const doRequest = target.protocol === 'https:' ? httpsRequest : httpRequest
+  const upstreamReq = doRequest(target, {
+    method: req.method,
+    headers: {
+      'Content-Type': req.headers['content-type'] || 'application/json',
+      // Forward the caller's Accept so a streaming request stays streaming.
+      accept: req.headers['accept'] || 'application/json',
+      Authorization: `Bearer ${K2_KEY}`,
+      ...(body !== undefined ? { 'Content-Length': Buffer.byteLength(body) } : {}),
+    },
+  }, (upstreamRes) => {
+    // Forward the reply straight through as bytes arrive. The headers go out
+    // immediately (before the model has thought), so Railway's edge sees an active
+    // response from the first millisecond and never returns its "Application failed
+    // to respond" 502.
+    res.writeHead(upstreamRes.statusCode || 502, {
+      'Content-Type': upstreamRes.headers['content-type'] || 'application/json',
       'Cache-Control': 'no-cache, no-transform',
-      // Tell any intermedi­ary proxy (nginx-style) not to buffer the stream.
+      // Tell any intermediary proxy (nginx-style) not to buffer the stream.
       'X-Accel-Buffering': 'no',
     })
-    if (upstream.body) {
-      const stream = Readable.fromWeb(upstream.body)
-      // If the client hangs up, stop pulling from the model.
-      res.on('close', () => stream.destroy())
-      stream.on('error', () => { try { res.end() } catch { /* already closed */ } })
-      stream.pipe(res)
-    } else {
-      res.end()
-    }
-  } catch (e) {
-    // Headers may already be out (mid-stream failure) — only send a 502 if not.
+    upstreamRes.pipe(res)
+    upstreamRes.on('error', () => { try { res.end() } catch { /* already closed */ } })
+  })
+
+  // The whole point: no idle timeout on the upstream socket. A silent 5-minute
+  // think must not be read as a dead connection.
+  upstreamReq.setTimeout(0)
+  upstreamReq.on('error', (e) => {
     if (!res.headersSent) {
       res.writeHead(502, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: `model endpoint unreachable: ${e.message}` }))
     } else {
       try { res.end() } catch { /* already closed */ }
     }
-  }
+  })
+  // If the browser hangs up, stop pulling from the model.
+  res.on('close', () => upstreamReq.destroy())
+
+  if (body !== undefined) upstreamReq.write(body)
+  upstreamReq.end()
 }
 
 // Static files out of dist/, with the SPA fallback every client-routed app needs.
@@ -123,7 +140,7 @@ async function serveStatic(req, res, url) {
   }
 }
 
-createServer(async (req, res) => {
+const server = createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost')
   try {
     if (url.pathname.startsWith('/k2')) return await proxyK2(req, res, url)
@@ -138,7 +155,17 @@ createServer(async (req, res) => {
     res.writeHead(500, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ error: String(e?.message || e) }))
   }
-}).listen(PORT, '0.0.0.0', () => {
+})
+
+// A K2 reasoning call can run for minutes with the connection mostly silent, so
+// none of Node's built-in timeouts may cut it: `timeout` is per-socket inactivity,
+// `requestTimeout` bounds how long a whole request may take. Both to 0 (disabled);
+// `keepAliveTimeout`/`headersTimeout` are left at their defaults (they only govern
+// idle keep-alive and header receipt, neither of which is the long phase here).
+server.timeout = 0
+server.requestTimeout = 0
+
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`[process-designer] listening on :${PORT}`)
   console.log(`[process-designer] database ${DB_FILE}`)
   if (!K2_KEY || !K2_URL) console.warn('[process-designer] WARNING: K2_API_URL/K2_API_KEY not set — AI features will fail')
