@@ -37,7 +37,11 @@
   cursor: pointer;
 }
 .pd-presenter-bar button:hover { background: rgba(255, 255, 255, 0.2); }
-.pd-presenter-stage { flex: 1; display: flex; min-height: 0; }
+/* min-width: 0 is load-bearing: without it a flex child defaults to min-width:auto
+   and grows to its content width, so the stage never clips and there is nothing to
+   scroll (the whole map just overflows the screen). Zero lets it clip to the
+   viewport and its overflow:auto produce the sideways scroll. */
+.pd-presenter-stage { flex: 1; display: flex; min-height: 0; min-width: 0; }
 /* Both images are sized to the stage height, so their lanes line up exactly. */
 .pd-presenter-owner {
   height: 100%;
@@ -1490,7 +1494,12 @@
 .pd-pv-stage {
   height: 64vh; overflow: auto; background: #fff;
   border: 1px solid #e3e9f0; border-radius: 10px;
+  cursor: grab;
 }
+.pd-pv-stage.is-grabbing { cursor: grabbing; }
+/* The owner column and body are dragged to scroll — don't let the browser start a
+   native image drag instead, which would swallow the gesture. */
+.pd-pv-owner, .pd-pv-body { user-select: none; -webkit-user-drag: none; }
 .pd-pv-track { display: flex; align-items: flex-start; width: max-content; }
 .pd-pv-owner { position: sticky; left: 0; z-index: 2; flex: 0 0 auto; box-shadow: 2px 0 6px rgba(12,41,69,0.08); }
 .pd-pv-body { flex: 0 0 auto; display: block; }
@@ -1660,8 +1669,8 @@
 .pd-studio-hint { padding: 2px 10px 6px; font-size: 11px; color: #9fb0c4; line-height: 1.4; }
 
 /* The studio presenter now hosts the shared PresenterView (with zoom). */
-.pd-presenter-stage > .pd-pv { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.pd-presenter-stage > .pd-pv .pd-pv-stage { flex: 1; height: auto; border: 0; border-radius: 0; }
+.pd-presenter-stage > .pd-pv { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.pd-presenter-stage > .pd-pv .pd-pv-stage { flex: 1; height: auto; border: 0; border-radius: 0; min-width: 0; }
 .pd-presenter-stage > .pd-pv .pd-pv-hint { display: none; }
 
 /* Archive — a holding pen at the foot of the repository. */

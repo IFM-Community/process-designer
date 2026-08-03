@@ -45,6 +45,56 @@ export default function PresenterView({ board, fullscreenable = true }) {
     return () => window.removeEventListener('keydown', h)
   }, [full])
 
+  // The presenter only scrolls SIDEWAYS, but two common inputs don't do that on
+  // their own, which reads as "I can't move it":
+  //   · a mouse wheel is vertical, and at "fit" there's no vertical room, so it
+  //     does nothing → translate a vertical wheel into a horizontal walk-through.
+  //   · dragging feels like the natural way to move a big board → grab-to-scroll.
+  // Both defer to real vertical scrolling when zoomed in past the stage height,
+  // and to native horizontal trackpad gestures.
+  useEffect(() => {
+    const st = stageRef.current
+    if (!st) return
+
+    const onWheel = (e) => {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return // native horizontal gesture
+      if (st.scrollHeight - st.clientHeight > 2) return    // zoomed in: let it scroll vertically
+      if (e.deltaY === 0) return
+      st.scrollLeft += e.deltaY
+      e.preventDefault()
+    }
+
+    let dragging = false
+    let startX = 0
+    let startLeft = 0
+    const onDown = (e) => {
+      if (e.button !== 0) return
+      dragging = true
+      startX = e.clientX
+      startLeft = st.scrollLeft
+      st.classList.add('is-grabbing')
+      st.setPointerCapture?.(e.pointerId)
+    }
+    const onMove = (e) => {
+      if (!dragging) return
+      st.scrollLeft = startLeft - (e.clientX - startX)
+    }
+    const onUp = () => { dragging = false; st.classList.remove('is-grabbing') }
+
+    st.addEventListener('wheel', onWheel, { passive: false })
+    st.addEventListener('pointerdown', onDown)
+    st.addEventListener('pointermove', onMove)
+    st.addEventListener('pointerup', onUp)
+    st.addEventListener('pointerleave', onUp)
+    return () => {
+      st.removeEventListener('wheel', onWheel)
+      st.removeEventListener('pointerdown', onDown)
+      st.removeEventListener('pointermove', onMove)
+      st.removeEventListener('pointerup', onUp)
+      st.removeEventListener('pointerleave', onUp)
+    }
+  }, [])
+
   const k = zoom || 1
   const px = H * k
 
