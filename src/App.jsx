@@ -55,7 +55,7 @@ import { DRAFT, PUBLISHED, STATUS_LABEL, makeSnapshot, publishState, statusOf, s
 import { SEGMENTS, codeFromTitle, codePrefix, prefixFromTitle } from './lib/processCode'
 import {
   PHASE_H, phasesOf, collapsedOf, phaseIdOf, newPhaseId, phaseSpans,
-  spanX, spanW, ownersOf, foldEdges, separatePhaseColumns, fillPhaseGaps, GROUPABLE,
+  spanX, spanW, ownersOf, foldEdges, separatePhaseColumns, fillPhaseGaps, GROUPABLE, colorOf,
 } from './lib/phases'
 import './App.css'
 
@@ -200,7 +200,7 @@ function boardColsFromNodes(nodes) {
 // there — and if every row is taken we GROW the lane by one row. The lane is the
 // owner, so it is never changed; the shape never silently overlaps and never
 // lands in someone else's lane.
-function placeIn(nodes, rows, lane, col, ignoreId) {
+function placeIn(nodes, rows, lane, col, ignoreId, preferRow = null) {
   const taken = new Set()
   for (const n of nodes) {
     if (n.id === ignoreId || ARTIFACT.has(n.type)) continue
@@ -211,6 +211,12 @@ function placeIn(nodes, rows, lane, col, ignoreId) {
     taken.add(`${slot.lane}:${slot.row}:${c}`)
   }
   const total = rows[lane] || 1
+  // Honour the ROW you aimed at, if it is free — so you can drop a shape into the
+  // SECOND row of a lane on purpose, not have it snap to whatever row happens to be
+  // free first. Only if that slot is taken do we fall back to the next free row.
+  if (preferRow != null && preferRow >= 0 && preferRow < total && !taken.has(`${lane}:${preferRow}:${col}`)) {
+    return { row: preferRow, rows }
+  }
   for (let row = 0; row < total; row++) {
     if (!taken.has(`${lane}:${row}:${col}`)) return { row, rows }
   }
@@ -783,7 +789,9 @@ function Canvas() {
   const setAnalysis = useCallback(
     (gaps) => {
       snapshot()
-      patchActive((s) => ({ ...s, analysis: gaps.length ? gaps : null }))
+      // Editing the gaps by hand means the reader has just curated them — treat the
+      // box as current, not stale.
+      patchActive((s) => ({ ...s, analysis: gaps.length ? gaps : null, analysisStale: false }))
     },
     [patchActive, snapshot],
   )
@@ -1013,12 +1021,12 @@ function Canvas() {
       structure.push({
         id: '__analysis', type: 'analysisBox',
         position: { x: 0, y: laneBottom + 28 },
-        data: { gaps: active.analysis },
+        data: { gaps: active.analysis, stale: !!active.analysisStale },
         style: { width: w }, zIndex: 1, ...common,
       })
     }
     return structure
-  }, [active.title, active.laneLabels, active.laneRows, active.nodes, active.analysis, active.analysisCollapsed])
+  }, [active.title, active.laneLabels, active.laneRows, active.nodes, active.analysis, active.analysisCollapsed, active.analysisStale])
 
   const renderedNodes = useMemo(() => [...structureNodes, ...active.nodes], [structureNodes, active.nodes])
   // Render every edge through the custom (labellable) edge type, even older ones
@@ -1120,9 +1128,10 @@ function Canvas() {
         const cy0 = node.position.y + size.height / 2
         const aim = slotAtY(rows, cy0)
         const col = Math.max(0, Math.round((node.position.x + size.width / 2 - HEADER_W - COL_W / 2) / COL_W))
-        // Same rule as dropping: the lane you dragged into is kept, the shape
-        // stacks into a free row there, and the lane grows if it has to.
-        const placed = placeIn(s.nodes, rows, aim.lane, col, node.id)
+        // Keep the lane you dragged into, and land in the ROW you aimed at when it's
+        // free; only stack into another free row (growing the lane if need be) when
+        // that exact slot is already taken.
+        const placed = placeIn(s.nodes, rows, aim.lane, col, node.id, aim.row)
         const pos = {
           x: colCenterX(col) - size.width / 2,
           y: slotCenterY(placed.rows, aim.lane, placed.row) - size.height / 2,
@@ -1448,6 +1457,11 @@ function Canvas() {
             phases: intact ? s.phases : [],
             collapsedPhases: intact ? s.collapsedPhases : [],
             analysis: board.analysis || null, // always replace, so a stale box can't linger
+            // The map just changed, but the gap analysis was written against the OLD
+            // map — it may still cite steps or artefacts that no longer exist (a
+            // removed "NOC", say). Flag it stale so the box says "regenerate" instead
+            // of quietly presenting out-of-date findings as current.
+            analysisStale: !!(board.analysis && board.analysis.length),
           }
         }
         if (sessionId) patchSession(sessionId, patch)
@@ -1863,7 +1877,8 @@ function Canvas() {
         return
       }
       snapshot()
-      patchSession(sid, (s) => ({ ...s, analysis: gaps }))
+      // A fresh analysis describes the map as it now stands, so it is no longer stale.
+      patchSession(sid, (s) => ({ ...s, analysis: gaps, analysisStale: false }))
       // Only re-fit if that process is still the one on screen.
       if (sid === stateRef.current.activeId) {
         setTimeout(() => fitView({ padding: 0.15, duration: 300, minZoom: 0.2 }), 80)
@@ -2236,6 +2251,26 @@ function Canvas() {
                 onFit={() => fitView({ padding: 0.15, duration: 300, minZoom: 0.2 })}
                 onAddCallout={addCallout}
               />
+              {/* The phase "story" over the map: just the stage titles, in order,
+                  so the whole process reads as 1 → 2 → … → N at a glance. Click a
+                  chip to jump into the Phases view to edit it. */}
+              {phasesOf(active).length > 0 && (
+                <div className="pd-phase-ribbon">
+                  {phasesOf(active).map((p, i) => (
+                    <button
+                      key={p.id}
+                      className="pd-phase-chip"
+                      style={{ '--pd-phase-hex': colorOf(p).hex }}
+                      onClick={() => setView('phases')}
+                      title="Open the Phases view to rename or regroup"
+                    >
+                      <span className="pd-phase-num">{i + 1}</span>
+                      <span className="pd-phase-name">{p.label}</span>
+                      {i < phasesOf(active).length - 1 && <span className="pd-phase-arrow">→</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
               <CommandBar
                 onRun={runCommand}
                 busyLabel={{
@@ -2253,9 +2288,10 @@ function Canvas() {
                   // analysis exists it's a single "Analyse" button; once it does,
                   // it becomes a "Gaps" menu grouping Regenerate / Hide / Edit.
                   active.analysis?.length
-                    ? { label: '✦ Gaps', hint: 'Gap-analysis controls',
+                    ? { label: active.analysisStale ? '⚠ Gaps' : '✦ Gaps',
+                        hint: active.analysisStale ? 'Gap analysis may be out of date — regenerate' : 'Gap-analysis controls',
                         menu: [
-                          { label: '✦ Regenerate', run: runAnalysis,
+                          { label: active.analysisStale ? '✦ Regenerate (out of date)' : '✦ Regenerate', run: runAnalysis,
                             hint: 'Re-run the gap analysis against the map as it now stands' },
                           { label: active.analysisCollapsed ? '▸ Show gaps' : '▾ Hide gaps', run: toggleAnalysisCollapsed,
                             hint: 'Hide the whole gap-analysis box, or bring it back' },

@@ -29,10 +29,12 @@ export function AnalysisNode({ data }) {
   // controls (Regenerate / Hide / Edit) live in the ✦ Gaps menu in the command
   // dock. This box is display-only; double-click still opens the editor.
   return (
-    <div className="pd-analysis-box nodrag nopan">
+    <div className={`pd-analysis-box nodrag nopan ${data.stale ? 'is-stale' : ''}`}>
       <div className="pd-analysis-head">
         <span className="pd-analysis-title">Gap analysis · areas of improvement</span>
-        <span className="pd-analysis-hint">double-click to edit · controls in the dock below</span>
+        {data.stale
+          ? <span className="pd-analysis-stale">⚠ May be out of date — the map changed since this was written. Use ✦ Gaps → Regenerate.</span>
+          : <span className="pd-analysis-hint">double-click to edit · controls in the dock below</span>}
       </div>
       <div className="pd-analysis-list" onDoubleClick={openGapEditor}>
         {lines.map((line, i) => {

@@ -237,6 +237,10 @@
   padding: 14px 18px;
   text-align: left;
 }
+/* Stale: the map changed after this was written. Amber rail + notice so it can't be
+   mistaken for a current analysis. */
+.pd-analysis-box.is-stale { border-color: #c98a1e; border-left-color: #c98a1e; background: #fffdf7; }
+.pd-analysis-stale { font-size: 11px; font-weight: 600; color: #a8710f; margin-left: 8px; }
 .pd-analysis-title {
   font-size: 12px;
   font-weight: 700;
