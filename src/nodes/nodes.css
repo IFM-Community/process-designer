@@ -194,12 +194,13 @@
   width: 100%;
   height: 100%;
   border-bottom: 1px solid var(--pd-teal);
-  background: transparent;
+  /* IFM lanes carry a faint blue wash so "us" reads across the whole board. */
+  background: rgba(21, 70, 119, 0.05);
 }
-.pd-lane-band.is-alt { background: rgba(21, 70, 119, 0.045); }
+.pd-lane-band.is-alt { background: rgba(21, 70, 119, 0.09); }
 /* Outside parties (non-IFM lanes) get a faint grey wash instead of the blue tint. */
-.pd-lane-band.is-other { background: rgba(108, 122, 140, 0.05); }
-.pd-lane-band.is-other.is-alt { background: rgba(108, 122, 140, 0.10); }
+.pd-lane-band.is-other { background: rgba(108, 122, 140, 0.06); }
+.pd-lane-band.is-other.is-alt { background: rgba(108, 122, 140, 0.11); }
 
 /* Interactive left header holding the owner name. IFM's own roles are blue (the
    subject of the map); every outside party is greyed. */

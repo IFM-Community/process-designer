@@ -7,7 +7,7 @@
 
 import { SHAPE_MAP } from '../shapes'
 import { TITLE_H, LANE_H, ROW_H, HEADER_W, COL_W, MIN_COLS } from '../board'
-import { rowsOf, laneHeight, laneTop, boardHeight } from './lanes'
+import { rowsOf, laneHeight, laneTop, boardHeight, isIFMOwner } from './lanes'
 import { gapsToLines, classifyLine } from './analysisFormat'
 import { codeFontSize } from './processCode'
 
@@ -24,6 +24,11 @@ const C = {
   muted: '#5b6b7d',   // Navy-tinted muted
   line: '#24486f',    // Navy — edge connectors
   bandAlt: '#eaeef4', // faint Navy lane band
+  greyHeader: '#6c7a8c', // Grey — non-IFM (outside party) lane headers
+  bandBlue: '#e4ebf3', // faint Navy band — IFM lanes
+  bandBlueAlt: '#dbe4ef',
+  bandGrey: '#ededf0', // faint grey band — outside-party lanes
+  bandGreyAlt: '#e5e6ea',
 }
 const FONT = "'Aktiv Grotesk', 'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 const MONO = "'Roboto Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
@@ -307,21 +312,23 @@ export function boardToSvg({ title, laneLabels = [], laneRows, nodes = [], edges
   const lanesBottom = laneTop(rows, laneCount)
 
   const parts = []
-  // Lane bands + separators
+  // Lane bands + separators — IFM lanes blue, outside parties grey.
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
     const lh = laneHeight(rows, i)
-    if (i % 2 === 1) parts.push(`<rect x="0" y="${ty}" width="${boardW}" height="${lh}" fill="${C.bandAlt}" />`)
+    const ifm = isIFMOwner(laneLabels[i])
+    const band = ifm ? (i % 2 === 1 ? C.bandBlueAlt : C.bandBlue) : (i % 2 === 1 ? C.bandGreyAlt : C.bandGrey)
+    parts.push(`<rect x="0" y="${ty}" width="${boardW}" height="${lh}" fill="${band}" />`)
     parts.push(`<line x1="0" y1="${ty + lh}" x2="${boardW}" y2="${ty + lh}" stroke="${C.teal}" stroke-width="1" opacity="0.5" />`)
   }
   // Title bar
   parts.push(`<rect x="0" y="0" width="${boardW}" height="${TITLE_H}" fill="${C.green}" />`)
   parts.push(`<text x="16" y="${TITLE_H / 2}" font-family="${FONT}" font-size="13" font-weight="700" fill="#fff" dominant-baseline="central">${esc(title || 'Untitled process')}</text>`)
-  // Lane headers (green column) with owner names
+  // Lane headers with owner names — IFM blue, outside parties grey.
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
     const lh = laneHeight(rows, i)
-    parts.push(`<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${C.green}" />`)
+    parts.push(`<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${isIFMOwner(laneLabels[i]) ? C.green : C.greyHeader}" />`)
     parts.push(centeredText(HEADER_W / 2, ty + lh / 2, wrap(laneLabels[i], 20), { size: 11, weight: 600, fill: '#e3ebf5', lineH: 14 }))
   }
   // Edges (under nodes)
@@ -372,10 +379,12 @@ export function presenterHeaderSvg({ laneLabels = [], laneRows, highlightOwner =
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
     const lh = laneHeight(rows, i)
+    // IFM's own roles are blue (the subject); every outside party is grey.
+    const fill = isIFMOwner(laneLabels[i]) ? C.green : C.greyHeader
     // With a chosen role, the reader's own lane stays bright and the rest fade.
     const dim = highlightOwner && laneLabels[i] !== highlightOwner
-    p += `<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${C.green}"${dim ? ' opacity="0.4"' : ''} />`
-    p += centeredText(HEADER_W / 2, ty + lh / 2, wrap(laneLabels[i], 18), { size: 12.5, weight: dim ? 600 : 700, fill: dim ? '#8ba0bd' : '#fff', lineH: 15 })
+    p += `<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${fill}"${dim ? ' opacity="0.4"' : ''} />`
+    p += centeredText(HEADER_W / 2, ty + lh / 2, wrap(laneLabels[i], 18), { size: 12.5, weight: dim ? 600 : 700, fill: dim ? '#c2ccd9' : '#fff', lineH: 15 })
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${HEADER_W}" height="${H}" viewBox="0 0 ${HEADER_W} ${H}"><rect width="${HEADER_W}" height="${H}" fill="${C.bg}"/><g transform="translate(0, ${PRESENT_PAD_Y})">${p}</g></svg>`
 }
@@ -408,7 +417,11 @@ export function presenterBodySvg({ title, laneLabels = [], laneRows, nodes = [],
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
     const lh = laneHeight(rows, i)
-    if (i % 2 === 1) p += `<rect x="${HEADER_W}" y="${ty}" width="${bodyW}" height="${lh}" fill="${C.bandAlt}" />`
+    // Band colour matches the header: IFM lanes get a faint blue wash, outside
+    // parties a faint grey one, so "us vs them" reads all the way across the board.
+    const ifm = isIFMOwner(laneLabels[i])
+    const band = ifm ? (i % 2 === 1 ? C.bandBlueAlt : C.bandBlue) : (i % 2 === 1 ? C.bandGreyAlt : C.bandGrey)
+    p += `<rect x="${HEADER_W}" y="${ty}" width="${bodyW}" height="${lh}" fill="${band}" />`
     p += `<line x1="${HEADER_W}" y1="${ty + lh}" x2="${HEADER_W + bodyW}" y2="${ty + lh}" stroke="${C.teal}" stroke-width="1" opacity="0.5" />`
   }
   p += `<rect x="${HEADER_W}" y="0" width="${bodyW}" height="${TITLE_H}" fill="${C.green}" />`
