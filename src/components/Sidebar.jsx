@@ -389,7 +389,10 @@ export default function Sidebar({
       </label>
       <p className="pd-section-sub">Drag onto a lane. They snap into place and auto-connect. Double-click text to edit.</p>
       <div className="pd-palette">
-        {SHAPES.map((s) => (
+        {/* A callout is an annotation, not a process step — it isn't dragged into a
+            lane like a shape. It has its own button in the top-left canvas tools, so
+            it stays out of the step palette. */}
+        {SHAPES.filter((s) => s.type !== 'callout').map((s) => (
           <div
             key={s.type}
             className="pd-palette-item"
