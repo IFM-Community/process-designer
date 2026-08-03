@@ -38,7 +38,7 @@ import {
   boardWidth, laneCenterY, colCenterX, snapNode, pickHandles,
 } from './board'
 import {
-  rowsOf, laneHeight, laneTop, slotCenterY, slotAtY, reseat, requiredRows,
+  rowsOf, laneHeight, laneTop, slotCenterY, slotAtY, reseat, requiredRows, isIFMOwner,
 } from './lib/lanes'
 import TableView from './components/TableView'
 import GapEditor from './components/GapEditor'
@@ -1003,13 +1003,17 @@ function Canvas() {
     const rows = rowsOf(active)
     active.laneLabels.forEach((label, i) => {
       const h = laneHeight(rows, i) // a lane is as tall as the rows it holds
+      // IFM's own roles are the subject of these maps, so they get the blue header;
+      // every outside party (Faculty, MBZUAI Finance, Student…) is greyed so it's
+      // obvious at a glance which lanes are "us".
+      const isIFM = isIFMOwner(label)
       structure.push({
         id: `band-${i}`, type: 'laneBand', position: { x: 0, y: laneTop(rows, i) },
-        data: { index: i }, style: { width: w, height: h, pointerEvents: 'none' }, zIndex: 1, ...common,
+        data: { index: i, isIFM }, style: { width: w, height: h, pointerEvents: 'none' }, zIndex: 1, ...common,
       })
       structure.push({
         id: `lane-${i}`, type: 'lane', position: { x: 0, y: laneTop(rows, i) },
-        data: { label, index: i }, style: { width: HEADER_W, height: h }, zIndex: 2, ...common,
+        data: { label, index: i, isIFM }, style: { width: HEADER_W, height: h }, zIndex: 2, ...common,
       })
     })
     const laneBottom = laneTop(rows, active.laneLabels.length)
@@ -2154,19 +2158,28 @@ function Canvas() {
                   open it.
                 </p>
                 <div className="pd-card-linklist">
-                  {sessions.filter((x) => x.id !== activeId).map((x) => (
-                    <button
-                      key={x.id}
-                      className="pd-card-link"
-                      onClick={() => linkProcessRef(refPickerFor, x.id)}
-                    >
-                      <span className="pd-card-link-code">{prefixOf(x) || '—'}</span>
-                      <span className="pd-card-link-title">{x.title || 'Untitled process'}</span>
-                    </button>
-                  ))}
-                  {sessions.length <= 1 && (
-                    <div className="pd-card-hint">There are no other processes to refer to yet.</div>
-                  )}
+                  {/* Archived processes are on their way out — you can't link to one.
+                      Only live processes are offered. */}
+                  {(() => {
+                    const linkable = sessions.filter((x) => x.id !== activeId && !x.archivedAt)
+                    return (
+                      <>
+                        {linkable.map((x) => (
+                          <button
+                            key={x.id}
+                            className="pd-card-link"
+                            onClick={() => linkProcessRef(refPickerFor, x.id)}
+                          >
+                            <span className="pd-card-link-code">{prefixOf(x) || '—'}</span>
+                            <span className="pd-card-link-title">{x.title || 'Untitled process'}</span>
+                          </button>
+                        ))}
+                        {!linkable.length && (
+                          <div className="pd-card-hint">There are no other processes to refer to yet.</div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
                 <div className="pd-modal-actions">
                   <button className="pd-modal-ghost" onClick={() => setRefPickerFor(null)}>Cancel</button>

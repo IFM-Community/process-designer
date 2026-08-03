@@ -15,7 +15,7 @@ export function TitleNode({ data }) {
 // Full-width visual band behind a lane's steps. Click-through so the canvas can
 // still be panned by dragging over it.
 export function LaneBandNode({ data }) {
-  return <div className={`pd-lane-band ${data.index % 2 === 1 ? 'is-alt' : ''}`} />
+  return <div className={`pd-lane-band ${data.index % 2 === 1 ? 'is-alt' : ''} ${data.isIFM ? '' : 'is-other'}`} />
 }
 
 // Gap-analysis box under the board. A clean outline display with an "Edit"
@@ -71,7 +71,7 @@ export function AnalysisNode({ data }) {
 export function LaneNode({ id, data }) {
   const { setNodeLabel } = useContext(BoardContext)
   return (
-    <div className="pd-lane-header">
+    <div className={`pd-lane-header ${data.isIFM ? '' : 'is-other'}`}>
       <input
         className="pd-lane-input nodrag nopan"
         value={data.label}

@@ -197,8 +197,12 @@
   background: transparent;
 }
 .pd-lane-band.is-alt { background: rgba(21, 70, 119, 0.045); }
+/* Outside parties (non-IFM lanes) get a faint grey wash instead of the blue tint. */
+.pd-lane-band.is-other { background: rgba(108, 122, 140, 0.05); }
+.pd-lane-band.is-other.is-alt { background: rgba(108, 122, 140, 0.10); }
 
-/* Interactive left header holding the owner name */
+/* Interactive left header holding the owner name. IFM's own roles are blue (the
+   subject of the map); every outside party is greyed. */
 .pd-lane-header {
   width: 100%;
   height: 100%;
@@ -208,6 +212,7 @@
   justify-content: center;
   padding: 6px;
 }
+.pd-lane-header.is-other { background: #6c7a8c; }
 .pd-lane-input {
   width: 100%;
   height: 100%;

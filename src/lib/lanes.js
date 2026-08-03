@@ -18,6 +18,14 @@ import { TITLE_H, ROW_H } from '../board'
 
 export { ROW_H }
 
+// These maps are IFM's own processes, so IFM's roles are the subject and everyone
+// else (Faculty Advisor, MBZUAI Finance, Student, CSI…) is an outside party. This
+// tells the two apart from the lane label so the app can highlight "us" and grey
+// the rest. "IFM" is matched as a whole token — "MBZUAI" must not count.
+export function isIFMOwner(label) {
+  return /\bIFM\b/i.test(String(label || ''))
+}
+
 // Always return a clean array of positive integers, one per lane.
 export function rowsOf(session) {
   const n = (session?.laneLabels || []).length
