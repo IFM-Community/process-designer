@@ -131,14 +131,19 @@ function normalizeSpec(spec) {
 }
 
 // K2 is a reasoning model and it thinks HARD — a full process map costs ~15k
-// completion tokens, of which the overwhelming majority is internal reasoning
-// that never reaches `content`. Two consequences we have to design around:
-//   1. max_tokens must cover reasoning + answer. Set it too low and the budget is
-//      spent thinking, the reply comes back with content:"" and
-//      finish_reason:"length", and the UI looks like it "generated nothing".
-//   2. A call legitimately takes 2-4 minutes. Anything faster is not on offer;
-//      `reasoning_effort: "low"` is accepted but ignored by this deployment.
-const MAX_TOKENS = 30000
+// completion tokens, most of it internal reasoning that never reaches `content`.
+// So the output has to cover reasoning + the whole answer.
+//
+// We deliberately send NO max_tokens. This model's context is 524288 tokens, and
+// when max_tokens is omitted the endpoint hands the reply the entire remaining
+// context — far more than any process map needs. A hardcoded ceiling could only
+// hurt: set it a shade too low and a big restructuring edit (the whole revised map
+// echoed back, on top of the reasoning) gets cut off mid-JSON and surfaces as the
+// useless "Could not parse the JSON". There is nothing to cap for — cost isn't
+// metered per token here and the timeout below already bounds a runaway call.
+//
+// A call legitimately takes 2-4 minutes; `reasoning_effort: "low"` is accepted but
+// ignored by this deployment, so there is no faster path on offer.
 const TIMEOUT_MS = 8 * 60 * 1000
 
 async function callModel({ system, prompt, json = true, signal }) {
@@ -154,8 +159,10 @@ async function callModel({ system, prompt, json = true, signal }) {
       signal: ctl.signal,
       headers: { accept: 'application/json', 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        // No max_tokens on purpose — see the note by TIMEOUT_MS. Omitting it lets
+        // the endpoint give the reply this model's full remaining context (512k),
+        // so a large map/edit is never truncated into unparseable JSON.
         model: MODEL,
-        max_tokens: MAX_TOKENS,
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
@@ -193,9 +200,18 @@ async function callModel({ system, prompt, json = true, signal }) {
   const data = await res.json()
   const choice = data?.choices?.[0]
   const text = choice?.message?.content ?? ''
-  // Ran out of budget mid-thought: say so plainly instead of failing on a parse.
-  if (!text.trim() && choice?.finish_reason === 'length') {
-    throw new Error('The model used its whole token budget reasoning and returned no answer. Try a shorter, simpler description.')
+  // Hit the token ceiling. The reply is INCOMPLETE either way, so never hand it to
+  // the JSON parser — a half-written map parses as the useless "Could not parse the
+  // JSON returned by the model", which hides the real cause. Two sub-cases, one
+  // clear message each:
+  //   · empty content  → the whole budget went to reasoning, nothing was written.
+  //   · partial content → the map was cut off mid-write (a big restructuring edit).
+  if (choice?.finish_reason === 'length') {
+    throw new Error(
+      text.trim()
+        ? 'The model’s answer was cut off before it finished — this change asks for too much in one pass. Split it into two smaller changes (e.g. add the new intake steps first, then the extension branch).'
+        : 'The model used its whole token budget reasoning and returned no answer. Try a shorter, simpler description.',
+    )
   }
   return json ? extractJson(text) : text
 }

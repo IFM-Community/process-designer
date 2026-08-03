@@ -1952,8 +1952,12 @@ function Canvas() {
             if (!src) return
             snapshot()
             // A real copy: new ids throughout, so editing the duplicate can never
-            // write back into the original.
+            // write back into the original. A duplicate is always a fresh DRAFT —
+            // dropping the source's publish snapshot/status keeps the copy out of
+            // the Library until someone deliberately publishes it. (Copying it
+            // would silently put a second, unreviewed entry in front of readers.)
             const copy = { ...JSON.parse(JSON.stringify(src)), id: uid('proc'), title: `${src.title} (copy)` }
+            delete copy.publish
             setSessions((ss) => [...ss, copy])
             setActiveId(copy.id)
           }}
