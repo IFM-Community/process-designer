@@ -1492,28 +1492,28 @@
 .pd-pv-ctrls button:hover { background: #eef3f8; }
 .pd-pv-ctrls .pd-pv-fit { font-size: 12px; }
 
-/* Phase "story" ribbon across the top of the map — stage titles only, in order. */
+/* Phase "story" ribbon across the top of the map — each stage is a coloured box
+   with a numbered circle on the left and its title on the right, in order. */
 .pd-phase-ribbon {
   position: absolute; top: 58px; left: 50%; transform: translateX(-50%);
-  z-index: 6; display: flex; flex-wrap: nowrap; align-items: center; gap: 2px;
-  max-width: calc(100% - 32px); overflow-x: auto;
-  padding: 5px 8px; background: rgba(255,255,255,0.94); backdrop-filter: blur(4px);
-  border: 1px solid #e3e9f0; border-radius: 999px; box-shadow: 0 6px 20px rgba(19,42,74,0.10);
+  z-index: 6; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px;
+  max-width: calc(100% - 32px); overflow-x: auto; padding: 4px 2px;
 }
 .pd-phase-ribbon::-webkit-scrollbar { height: 0; }
 .pd-phase-chip {
-  display: inline-flex; align-items: center; gap: 7px; flex: 0 0 auto;
-  border: none; background: transparent; cursor: pointer;
-  padding: 4px 6px 4px 4px; border-radius: 999px; font: inherit;
+  display: inline-flex; align-items: center; gap: 9px; flex: 0 0 auto;
+  cursor: pointer; font: inherit; padding: 7px 15px 7px 7px;
+  background: var(--pd-phase-hex, #154677); border: none; border-radius: 10px;
+  box-shadow: 0 4px 14px rgba(19,42,74,0.18);
 }
-.pd-phase-chip:hover { background: #eef3f8; }
+.pd-phase-chip:hover { filter: brightness(1.08); }
 .pd-phase-num {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: 50%; flex: 0 0 auto;
-  background: var(--pd-phase-hex, #154677); color: #fff; font-size: 11px; font-weight: 700;
+  width: 24px; height: 24px; border-radius: 50%; flex: 0 0 auto;
+  background: #fff; color: var(--pd-phase-hex, #154677); font-size: 12px; font-weight: 800;
 }
-.pd-phase-name { font-size: 12.5px; font-weight: 600; color: var(--pd-ink); white-space: nowrap; }
-.pd-phase-arrow { color: #9fb0c4; font-weight: 700; margin-left: 3px; }
+.pd-phase-name { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; }
+.pd-phase-arrow { color: #9fb0c4; font-weight: 800; font-size: 14px; flex: 0 0 auto; }
 .pd-pv-stage {
   height: 64vh; overflow: auto; background: #fff;
   border: 1px solid #e3e9f0; border-radius: 10px;

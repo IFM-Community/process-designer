@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect, useMemo } from 'react'
+import { useCallback, useRef, useState, useEffect, useMemo, Fragment } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -2257,17 +2257,18 @@ function Canvas() {
               {phasesOf(active).length > 0 && (
                 <div className="pd-phase-ribbon">
                   {phasesOf(active).map((p, i) => (
-                    <button
-                      key={p.id}
-                      className="pd-phase-chip"
-                      style={{ '--pd-phase-hex': colorOf(p).hex }}
-                      onClick={() => setView('phases')}
-                      title="Open the Phases view to rename or regroup"
-                    >
-                      <span className="pd-phase-num">{i + 1}</span>
-                      <span className="pd-phase-name">{p.label}</span>
-                      {i < phasesOf(active).length - 1 && <span className="pd-phase-arrow">→</span>}
-                    </button>
+                    <Fragment key={p.id}>
+                      {i > 0 && <span className="pd-phase-arrow">→</span>}
+                      <button
+                        className="pd-phase-chip"
+                        style={{ '--pd-phase-hex': colorOf(p).hex }}
+                        onClick={() => setView('phases')}
+                        title="Open the Phases view to rename or regroup"
+                      >
+                        <span className="pd-phase-num">{i + 1}</span>
+                        <span className="pd-phase-name">{p.label}</span>
+                      </button>
+                    </Fragment>
                   ))}
                 </div>
               )}
