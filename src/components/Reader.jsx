@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
 import { GROUPABLE } from '../lib/phases'
+import { flowOrder } from '../lib/layout'
+import { prefixOf } from '../lib/processCode'
+import { statusOf, PUBLISHED } from '../lib/publish'
 import PresenterView from './PresenterView'
 
 // Reading a published process. The Library is for looking things up, not editing.
@@ -12,8 +15,11 @@ import PresenterView from './PresenterView'
 // It reads the published SNAPSHOT, never the draft, so what a reader sees is what
 // the author signed off, not whatever is being typed in the studio right now.
 
-export default function Reader({ session, onBack }) {
+export default function Reader({ session, processes = [], onOpen, onBack }) {
   const [tab, setTab] = useState('map')
+  // "Who are you?" — pick your role and your own steps stay lit while the rest dim,
+  // so a reader can find just the parts that are theirs. '' = show everyone.
+  const [asRole, setAsRole] = useState('')
   const pub = session.publish || {}
   const snap = pub.snapshot || session
 
@@ -25,10 +31,18 @@ export default function Reader({ session, onBack }) {
     edges: snap.edges,
   }), [snap])
 
-  const steps = (snap.nodes || [])
+  // Flow order, so every step — including a referenced-process link, which carries
+  // no number of its own — sits where it actually runs instead of jumping to the
+  // top of the list.
+  const rank = useMemo(() => {
+    const { order } = flowOrder(snap.nodes || [], snap.edges || [])
+    return new Map(order.map((id, i) => [id, i]))
+  }, [snap])
+
+  const steps = useMemo(() => (snap.nodes || [])
     .filter(GROUPABLE)
     .slice()
-    .sort((a, b) => (a.data?.numbering || '').localeCompare(b.data?.numbering || '', undefined, { numeric: true }))
+    .sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)), [snap, rank])
 
   const laneOf = (n) => {
     const h = n.style?.height ?? 72
@@ -36,6 +50,23 @@ export default function Reader({ session, onBack }) {
     return snap.laneLabels?.[i] || ''
   }
 
+  // A referenced-process shape points at another process; resolve it so we can show
+  // that process's CODE (not the empty number it carries) and, when that process is
+  // itself published, open it.
+  const refTargetOf = (n) => (n.type === 'referencedProcess' && n.data?.refId)
+    ? processes.find((p) => p.id === n.data.refId)
+    : null
+  const codeOf = (n) => {
+    const t = refTargetOf(n)
+    return t ? prefixOf(t) : (n.data?.numbering || '')
+  }
+
+  const owners = (snap.laneLabels || []).filter(Boolean)
+  const mine = (n) => !asRole || laneOf(n) === asRole
+
+  const publishedStr = pub.publishedAt
+    ? new Date(pub.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : null
 
   return (
     <div className="pd-reader">
@@ -50,20 +81,31 @@ export default function Reader({ session, onBack }) {
             <span>{steps.length} steps</span>
             <span>{(snap.laneLabels || []).length} owners</span>
             {pub.approver ? <span>Approved by {pub.approver}</span> : null}
-            {pub.publishedAt ? <span>Published {new Date(pub.publishedAt).toLocaleDateString()}</span> : null}
+            {publishedStr ? <span>Published {publishedStr}</span> : null}
           </div>
         </header>
+
+        {/* Who are you? — light up just your steps. */}
+        {owners.length > 0 && (
+          <div className="pd-reader-as">
+            <span className="pd-reader-as-label">I am</span>
+            <select className="pd-reader-as-select" value={asRole} onChange={(e) => setAsRole(e.target.value)}>
+              <option value="">everyone (show all)</option>
+              {owners.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+            {asRole && <span className="pd-reader-as-hint">— your steps are highlighted, the rest are dimmed</span>}
+          </div>
+        )}
 
         <div className="pd-reader-tabs">
           <button className={tab === 'map' ? 'is-on' : ''} onClick={() => setTab('map')}>Map</button>
           <button className={tab === 'steps' ? 'is-on' : ''} onClick={() => setTab('steps')}>Steps</button>
-
         </div>
 
         {tab === 'map' && (
           <div className="pd-reader-map">
             {snap.nodes?.length
-              ? <PresenterView board={board} />
+              ? <PresenterView board={board} highlightOwner={asRole} />
               : <div className="pd-reader-none">This process has no steps yet.</div>}
           </div>
         )}
@@ -74,22 +116,31 @@ export default function Reader({ session, onBack }) {
               <tr><th>#</th><th>Step</th><th>Owner</th><th>Input</th><th>Output</th></tr>
             </thead>
             <tbody>
-              {steps.map((n) => (
-                <tr key={n.id}>
-                  <td className="pd-reader-code">{n.data?.numbering || ''}</td>
-                  <td>
-                    <strong>{n.data?.label}</strong>
-                    {n.data?.description && <div className="pd-reader-desc">{n.data.description}</div>}
-                  </td>
-                  <td>{laneOf(n)}</td>
-                  <td>{n.data?.input || '—'}</td>
-                  <td>{n.data?.output || '—'}</td>
-                </tr>
-              ))}
+              {steps.map((n) => {
+                const target = refTargetOf(n)
+                const openable = target && statusOf(target) === PUBLISHED
+                return (
+                  <tr
+                    key={n.id}
+                    className={`${mine(n) ? '' : 'is-dim'} ${openable ? 'is-link' : ''}`}
+                    onClick={openable ? () => onOpen(target.id) : undefined}
+                    title={openable ? `Open “${target.title || 'process'}”` : undefined}
+                  >
+                    <td className="pd-reader-code">{codeOf(n)}</td>
+                    <td>
+                      <strong>{n.data?.label}</strong>
+                      {openable && <span className="pd-reader-open">↗ open process</span>}
+                      {n.data?.description && <div className="pd-reader-desc">{n.data.description}</div>}
+                    </td>
+                    <td>{laneOf(n)}</td>
+                    <td>{n.data?.input || '—'}</td>
+                    <td>{n.data?.output || '—'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         )}
-
       </div>
     </div>
   )

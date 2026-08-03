@@ -363,7 +363,7 @@ const boardWidthOf = (laneCount, stepNodes) => {
 const PRESENT_PAD_Y = 56
 
 // The frozen left column: green title corner + green lane headers with owners.
-export function presenterHeaderSvg({ laneLabels = [], laneRows }) {
+export function presenterHeaderSvg({ laneLabels = [], laneRows, highlightOwner = '' }) {
   const laneCount = laneLabels.length || 1
   const rows = rowsOf({ laneLabels, laneRows })
   const Hc = laneTop(rows, laneCount)
@@ -372,15 +372,17 @@ export function presenterHeaderSvg({ laneLabels = [], laneRows }) {
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
     const lh = laneHeight(rows, i)
-    p += `<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${C.green}" />`
-    p += centeredText(HEADER_W / 2, ty + lh / 2, wrap(laneLabels[i], 18), { size: 12.5, weight: 600, fill: '#e3ebf5', lineH: 15 })
+    // With a chosen role, the reader's own lane stays bright and the rest fade.
+    const dim = highlightOwner && laneLabels[i] !== highlightOwner
+    p += `<rect x="0" y="${ty}" width="${HEADER_W}" height="${lh}" fill="${C.green}"${dim ? ' opacity="0.4"' : ''} />`
+    p += centeredText(HEADER_W / 2, ty + lh / 2, wrap(laneLabels[i], 18), { size: 12.5, weight: dim ? 600 : 700, fill: dim ? '#8ba0bd' : '#fff', lineH: 15 })
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${HEADER_W}" height="${H}" viewBox="0 0 ${HEADER_W} ${H}"><rect width="${HEADER_W}" height="${H}" fill="${C.bg}"/><g transform="translate(0, ${PRESENT_PAD_Y})">${p}</g></svg>`
 }
 
 // The scrollable body: title bar, lane bands + separators, edges and nodes —
 // everything to the RIGHT of the owner column (viewBox starts at HEADER_W).
-export function presenterBodySvg({ title, laneLabels = [], laneRows, nodes = [], edges = [] }) {
+export function presenterBodySvg({ title, laneLabels = [], laneRows, nodes = [], edges = [], highlightOwner = '' }) {
   const stepNodes = nodes.filter((n) => n.position)
   const nodeById = new Map(stepNodes.map((n) => [n.id, n]))
   const laneCount = laneLabels.length || 1
@@ -389,6 +391,19 @@ export function presenterBodySvg({ title, laneLabels = [], laneRows, nodes = [],
   const rows = rowsOf({ laneLabels, laneRows })
   const Hc = laneTop(rows, laneCount)
   const H = Hc + PRESENT_PAD_Y * 2
+  // "Who are you?" — which lane owner a node belongs to, so we can dim everyone
+  // else's steps and leave the reader's own lit.
+  const ownerOf = (n) => {
+    const cy = n.position.y + (n.style?.height ?? 72) / 2
+    let y = TITLE_H
+    for (let i = 0; i < laneCount; i++) {
+      const h = laneHeight(rows, i)
+      if (cy < y + h || i === laneCount - 1) return laneLabels[i] || ''
+      y += h
+    }
+    return ''
+  }
+  const dimmed = (n) => highlightOwner && ownerOf(n) !== highlightOwner
   let p = ''
   for (let i = 0; i < laneCount; i++) {
     const ty = laneTop(rows, i)
@@ -398,8 +413,10 @@ export function presenterBodySvg({ title, laneLabels = [], laneRows, nodes = [],
   }
   p += `<rect x="${HEADER_W}" y="0" width="${bodyW}" height="${TITLE_H}" fill="${C.green}" />`
   p += `<text x="${HEADER_W + 16}" y="${TITLE_H / 2}" font-family="${FONT}" font-size="14" font-weight="700" fill="#fff" dominant-baseline="central">${esc(title || 'Untitled process')}</text>`
-  for (const e of edges) p += renderEdge(e, nodeById)
-  for (const n of stepNodes) p += renderNode(n)
+  // With a role chosen, fade the flow lines back so the reader's own steps carry the
+  // eye; edges are context, not the point.
+  for (const e of edges) p += highlightOwner ? `<g opacity="0.3">${renderEdge(e, nodeById)}</g>` : renderEdge(e, nodeById)
+  for (const n of stepNodes) p += dimmed(n) ? `<g opacity="0.22">${renderNode(n)}</g>` : renderNode(n)
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" width="${bodyW}" height="${H}" viewBox="${HEADER_W} 0 ${bodyW} ${H}">` +
     `<rect x="${HEADER_W}" y="0" width="${bodyW}" height="${H}" fill="${C.bg}"/>` +

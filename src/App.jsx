@@ -52,7 +52,7 @@ import PublishDialog from './components/PublishDialog'
 import ProcessCard from './components/ProcessCard'
 import { downloadManual } from './lib/exportManual'
 import { DRAFT, PUBLISHED, STATUS_LABEL, makeSnapshot, publishState, statusOf, suggestDepartment } from './lib/publish'
-import { SEGMENTS, codeFromTitle, codePrefix, prefixFromTitle } from './lib/processCode'
+import { SEGMENTS, codeFromTitle, codePrefix, prefixFromTitle, prefixOf } from './lib/processCode'
 import {
   PHASE_H, phasesOf, collapsedOf, phaseIdOf, newPhaseId, phaseSpans,
   spanX, spanW, ownersOf, foldEdges, separatePhaseColumns, fillPhaseGaps, GROUPABLE, colorOf,
@@ -2222,7 +2222,12 @@ function Canvas() {
           <div className="pd-canvas-body">
           <ViewBoundary resetKey={`${view}:${activeId}`} onReset={() => setView('home')}>
           {view === 'reader' && readerSession ? (
-            <Reader session={readerSession} onBack={() => { setReaderId(null); setView('library') }} />
+            <Reader
+              session={readerSession}
+              processes={sessions}
+              onOpen={(id) => { setReaderId(id); setView('reader') }}
+              onBack={() => { setReaderId(null); setView('library') }}
+            />
           ) : view === 'library' ? (
             <Portal
               sessions={sessions}
@@ -2416,10 +2421,6 @@ function Canvas() {
 
 // The number a process stamps on its steps. The card code wins once set; until
 // then it is derived from the title, so a brand-new process is never uncoded.
-function prefixOf(session) {
-  return session?.card?.code ? codePrefix(session.card.code) : prefixFromTitle(session?.title || '')
-}
-
 // The wire format every AI call speaks. Module-level because it is asked for a
 // session that is not necessarily the active one — the publish dialog summarises
 // whichever process it was opened on.

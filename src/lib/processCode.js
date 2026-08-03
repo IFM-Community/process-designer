@@ -136,6 +136,13 @@ export function codeFromTitle(title, entity = 'IFM') {
 
 export const prefixFromTitle = (title, entity) => codePrefix(codeFromTitle(title, entity))
 
+// A process's code prefix — from its saved card code if it has one, otherwise
+// inferred from its title. Shared so both the studio and the reader resolve a
+// referenced process to the SAME code.
+export function prefixOf(session) {
+  return session?.card?.code ? codePrefix(session.card.code) : prefixFromTitle(session?.title || '')
+}
+
 // Read a code back into segments — used to seed the editor from a process that
 // already has numbering, so existing work isn't retyped.
 export function parseCode(str) {

@@ -15,18 +15,18 @@ import { presenterHeaderSvg, presenterBodySvg } from '../lib/exportSvg'
 
 const HEADER_W = 152 // must match exportSvg's owner-column width
 
-export default function PresenterView({ board, fullscreenable = true }) {
+export default function PresenterView({ board, fullscreenable = true, highlightOwner = '' }) {
   const stageRef = useRef(null)
   const [zoom, setZoom] = useState(null) // null → "fit height" until measured
   const [full, setFull] = useState(false)
 
   const { ownerUrl, bodyUrl, H } = useMemo(() => {
-    const header = presenterHeaderSvg(board)
-    const body = presenterBodySvg(board)
+    const header = presenterHeaderSvg({ ...board, highlightOwner })
+    const body = presenterBodySvg({ ...board, highlightOwner })
     const h = parseFloat((header.match(/height="([\d.]+)"/) || [])[1]) || 600
     const toUrl = (s) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s)
     return { ownerUrl: toUrl(header), bodyUrl: toUrl(body), H: h }
-  }, [board])
+  }, [board, highlightOwner])
 
   // Fit = the whole height of the process in the stage, so you scroll only
   // sideways. This is the presenter's resting state.
