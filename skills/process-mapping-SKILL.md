@@ -580,8 +580,18 @@ as a chain of stages, not as geometry on the board.
 
 Rules:
 - **4-6 stages.** Fewer says nothing; more is not a summary.
-- **Sequential and contiguous**: every step of stage 2 comes after every step of
-  stage 1. Never interleave.
+- **Sequential and contiguous — a stage is an unbroken run of the numbered flow.**
+  Steps are numbered `001, 002, 003 …` strictly in flow order (§2b), so the number
+  IS the chronological position. A stage is a consecutive slice of that sequence;
+  the ONLY decision is where to cut `001 → 002 → … → last` into 4-6 pieces. It
+  follows that **a lower-numbered step can never sit in a later stage than a
+  higher-numbered one**: if `006` is in stage 1, then `003`, `004`, `005` are in
+  stage 1 too. Putting `003 Check budget` in stage 2 while `006 Add details` is in
+  stage 1 is wrong — `003` runs before `006`, so it cannot be in a later stage.
+- **Group by POSITION, not by theme.** Do not gather all the "financial" or all the
+  "approval" steps into one stage when they are scattered through the sequence —
+  that silently reorders the process. Cut where it changes gear and take whatever
+  steps fall in each slice, even if their themes are mixed.
 - **Cut where the process changes gear** — a new artefact appears, the work hands
   over to a different group, or a distinct outcome is reached.
 - **Start and End belong to no stage.** They are punctuation, not work; including

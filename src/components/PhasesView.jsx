@@ -143,7 +143,15 @@ export default function PhasesView({
       if (pid && byPhase.has(pid)) byPhase.get(pid).push(n)
       else loose.push(n)
     }
-    const sortSteps = (a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)
+    // Order a stage's steps by their NUMBER — the chronological order the reader
+    // reads off the codes (001, 002, 003 …). Fall back to flow position only for
+    // steps with no number, so nothing without a code jumps around.
+    const numOf = (n) => { const m = /(\d+)\s*$/.exec(n.data?.numbering || ''); return m ? parseInt(m[1], 10) : null }
+    const sortSteps = (a, b) => {
+      const na = numOf(a); const nb = numOf(b)
+      if (na != null && nb != null && na !== nb) return na - nb
+      return (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)
+    }
     const list = phases.map((p) => {
       const steps = (byPhase.get(p.id) || []).sort(sortSteps)
       return { ...p, steps }

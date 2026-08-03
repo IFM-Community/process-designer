@@ -55,7 +55,7 @@ import { DRAFT, PUBLISHED, STATUS_LABEL, makeSnapshot, publishState, statusOf, s
 import { SEGMENTS, codeFromTitle, codePrefix, prefixFromTitle } from './lib/processCode'
 import {
   PHASE_H, phasesOf, collapsedOf, phaseIdOf, newPhaseId, phaseSpans,
-  spanX, spanW, ownersOf, foldEdges, separatePhaseColumns, fillPhaseGaps,
+  spanX, spanW, ownersOf, foldEdges, separatePhaseColumns, fillPhaseGaps, GROUPABLE,
 } from './lib/phases'
 import './App.css'
 
@@ -350,6 +350,50 @@ function boardToRows(nodes, laneLabels, rows) {
       const lane = laneIndexOf(n, rows || laneLabels.length)
       return { id: n.id, type: n.type, lane, responsibility: laneLabels[lane] ?? '', data: n.data || {} }
     })
+}
+
+// A stage is a CONTIGUOUS run of the process in flow order — you can never put an
+// earlier step in a later stage than a later step (e.g. put "003 Check budget" in
+// stage 2 while "006 Add details" sits in stage 1). The model groups by theme and
+// gets this wrong, so we enforce it deterministically: if the AI's assignment
+// interleaves in flow order, re-slice the flow-ordered steps into consecutive
+// chunks — the stages keep their order and sizes, but each becomes one unbroken run.
+function enforceContiguousPhases(nodes, edges, phases, assign) {
+  // Canonical chronological order is the STEP NUMBER — that is what the reader sees
+  // and judges the ordering by. Fall back to flow position only for steps that
+  // carry no number (e.g. a referenced-process link).
+  const { order } = flowOrder(nodes, edges)
+  const frank = new Map(order.map((id, i) => [id, i]))
+  const numOf = (n) => { const m = /(\d+)\s*$/.exec(n.data?.numbering || ''); return m ? parseInt(m[1], 10) : null }
+  const steps = nodes
+    .filter((n) => GROUPABLE(n) && assign[n.id])
+    .sort((a, b) => {
+      const na = numOf(a); const nb = numOf(b)
+      if (na != null && nb != null && na !== nb) return na - nb
+      return (frank.get(a.id) ?? 0) - (frank.get(b.id) ?? 0)
+    })
+  if (steps.length < 2) return assign
+
+  // Already contiguous? (each phase id appears in exactly one unbroken run.)
+  const seen = new Set()
+  let prev = null
+  let interleaved = false
+  for (const n of steps) {
+    const pid = assign[n.id]
+    if (pid !== prev) { if (seen.has(pid)) { interleaved = true; break } seen.add(pid); prev = pid }
+  }
+  if (!interleaved) return assign
+
+  // Re-slice: walk the AI's stages IN ORDER, giving each the next `count` steps in
+  // flow order, where `count` is how many the AI put in that stage.
+  const count = new Map(phases.map((p) => [p.id, 0]))
+  for (const n of steps) count.set(assign[n.id], (count.get(assign[n.id]) || 0) + 1)
+  const next = { ...assign }
+  let i = 0
+  for (const p of phases) {
+    for (let k = 0; k < (count.get(p.id) || 0) && i < steps.length; k++, i++) next[steps[i].id] = p.id
+  }
+  return next
 }
 
 function Canvas() {
@@ -1707,8 +1751,10 @@ function Canvas() {
         return
       }
       const phases = (res?.phases || []).filter((p) => p?.id && p?.label)
-      const assign = res?.assign || {}
       if (!phases.length) { alert(`No phases came back for "${title}". Try again.`); return }
+      // Guardrail: a stage must be one unbroken run of the flow, never a theme that
+      // scoops up an early step into a late stage. Fix any interleaving the model left.
+      const assign = enforceContiguousPhases(active.nodes, active.edges, phases, res?.assign || {})
       // Re-issue ids so a re-run can never collide with the previous grouping.
       const idMap = new Map(phases.map((p) => [p.id, newPhaseId()]))
       snapshot()

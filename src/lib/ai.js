@@ -392,8 +392,18 @@ lane it touches. The point is that someone can describe the whole process as
 
 Rules:
 - 4-6 phases. Fewer than 4 says nothing; more than 6 is not a summary.
-- Phases are SEQUENTIAL and CONTIGUOUS in flow order. Every step in phase 2 comes
-  after every step in phase 1. Never interleave.
+- Phases are SEQUENTIAL and CONTIGUOUS in flow order — which is the step NUMBER
+  order (steps are numbered 001, 002, 003 … strictly in flow order). A phase is an
+  unbroken run of consecutive step numbers. Your ONLY decision is where to cut the
+  sequence 001 → 002 → … → last into 4-6 consecutive slices.
+- Therefore you can NEVER put a lower-numbered step in a later phase than a
+  higher-numbered step. If 006 is in phase 1, then 003, 004 and 005 are in phase 1
+  too. Concretely: assigning "003 Check budget" to phase 2 while "006 Add details"
+  sits in phase 1 is WRONG — 003 comes before 006, so it cannot be in a later phase.
+- Group by POSITION in the numbered flow, NOT by theme. Do not gather all the
+  "financial" or all the "approval" steps into one phase if they are scattered
+  through the sequence — that reorders the process. Cut the sequence where it
+  changes gear, and take whatever steps fall in each slice.
 - EVERY step must belong to exactly one phase, EXCEPT "startEnd" nodes (Start and
   End). Those are punctuation, not work — leave them out of "assign" entirely.
 - If the process has alternative endings or exception paths (extended / converted /
