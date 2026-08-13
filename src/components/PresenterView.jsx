@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { presenterHeaderSvg, presenterBodySvg } from '../lib/exportSvg'
+import { SHAPE_MAP } from '../shapes'
+
+// Must match exportSvg: the owner column width and the vertical breathing room the
+// presenter body is drawn with. Used to place clickable hotspots over the static SVG.
+const PRESENT_PAD_Y = 56
 
 // The presenter — a process read the way you'd walk someone through it.
 //
@@ -15,8 +20,14 @@ import { presenterHeaderSvg, presenterBodySvg } from '../lib/exportSvg'
 
 const HEADER_W = 152 // must match exportSvg's owner-column width
 
-export default function PresenterView({ board, fullscreenable = true, highlightOwner = '' }) {
+export default function PresenterView({ board, fullscreenable = true, highlightOwner = '', onOpenRef }) {
   const stageRef = useRef(null)
+  // Referenced-process boxes the reader can click — the map here is a static SVG,
+  // so we overlay a transparent hotspot over each one and call back on click.
+  const refNodes = useMemo(
+    () => (onOpenRef ? (board.nodes || []).filter((n) => n.type === 'referencedProcess' && n.position) : []),
+    [board.nodes, onOpenRef],
+  )
   const [zoom, setZoom] = useState(null) // null → "fit height" until measured
   const [full, setFull] = useState(false)
 
@@ -119,13 +130,36 @@ export default function PresenterView({ board, fullscreenable = true, highlightO
             draggable={false}
             style={{ height: px, width: HEADER_W * k }}
           />
-          <img
-            className="pd-pv-body"
-            src={bodyUrl}
-            alt={board.title ? `${board.title} process` : 'Process'}
-            draggable={false}
-            style={{ height: px }}
-          />
+          <div className="pd-pv-bodywrap" style={{ position: 'relative', height: px }}>
+            <img
+              className="pd-pv-body"
+              src={bodyUrl}
+              alt={board.title ? `${board.title} process` : 'Process'}
+              draggable={false}
+              style={{ height: px, display: 'block' }}
+            />
+            {/* Clickable hotspots over the referenced-process boxes. Positioned from
+                the same coordinates the SVG is drawn with (body viewBox starts at
+                HEADER_W; nodes offset by PRESENT_PAD_Y), scaled by the zoom k. */}
+            {refNodes.map((n) => {
+              const size = SHAPE_MAP[n.type]?.size || { width: 160, height: 80 }
+              const imgs = n.data?.images?.length || 0
+              return (
+                <button
+                  key={n.id}
+                  className="pd-pv-hotspot"
+                  style={{
+                    left: (n.position.x - HEADER_W) * k,
+                    top: (n.position.y + PRESENT_PAD_Y) * k,
+                    width: size.width * k,
+                    height: size.height * k,
+                  }}
+                  title={imgs ? `View ${imgs} image${imgs > 1 ? 's' : ''}` : `Open “${n.data?.label || 'process'}”`}
+                  onClick={() => onOpenRef(n)}
+                />
+              )
+            })}
+          </div>
         </div>
       </div>
       <div className="pd-pv-hint">Scroll ← → to walk through the process · the owner column stays put</div>

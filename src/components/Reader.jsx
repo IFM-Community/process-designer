@@ -66,6 +66,14 @@ export default function Reader({ session, processes = [], onOpen, onBack }) {
   const owners = (snap.laneLabels || []).filter(Boolean)
   const mine = (n) => !asRole || laneOf(n) === asRole
 
+  // Clicking a referenced-process box on the map opens its images, or the linked
+  // process when that process is itself published.
+  const openRef = (n) => {
+    if (n.data?.images?.length) { setViewer({ label: n.data?.label, images: n.data.images }); return }
+    const target = refTargetOf(n)
+    if (target && statusOf(target) === PUBLISHED) onOpen(target.id)
+  }
+
   const publishedStr = pub.publishedAt
     ? new Date(pub.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
     : null
@@ -107,7 +115,7 @@ export default function Reader({ session, processes = [], onOpen, onBack }) {
         {tab === 'map' && (
           <div className="pd-reader-map">
             {snap.nodes?.length
-              ? <PresenterView board={board} highlightOwner={asRole} />
+              ? <PresenterView board={board} highlightOwner={asRole} onOpenRef={openRef} />
               : <div className="pd-reader-none">This process has no steps yet.</div>}
           </div>
         )}

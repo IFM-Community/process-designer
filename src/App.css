@@ -1578,6 +1578,13 @@
 .pd-pv-track { display: flex; align-items: flex-start; width: max-content; }
 .pd-pv-owner { position: sticky; left: 0; z-index: 2; flex: 0 0 auto; box-shadow: 2px 0 6px rgba(12,41,69,0.08); }
 .pd-pv-body { flex: 0 0 auto; display: block; }
+.pd-pv-bodywrap { flex: 0 0 auto; }
+/* Transparent clickable region over a referenced-process box on the static map. */
+.pd-pv-hotspot {
+  position: absolute; border: none; background: transparent; cursor: pointer;
+  border-radius: 6px; padding: 0;
+}
+.pd-pv-hotspot:hover { background: rgba(21, 70, 119, 0.12); box-shadow: 0 0 0 2px rgba(21,70,119,0.35) inset; }
 .pd-pv-hint { margin-top: 8px; font-size: 12px; color: #93a3b6; text-align: center; }
 .pd-pv.is-full {
   position: fixed; inset: 0; z-index: 250; background: #f4f7fa; padding: 16px;
