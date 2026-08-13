@@ -76,66 +76,77 @@ async function proxyK2(req, res, url) {
 
   const target = new URL(K2_URL + url.pathname.replace(/^\/k2/, '') + url.search)
   const doRequest = target.protocol === 'https:' ? httpsRequest : httpRequest
+  const wantsSSE = (req.headers['accept'] || '').includes('event-stream')
+
+  // HEARTBEAT (SSE only). The reasoning model is silent for minutes while it
+  // thinks; an idle TCP connection is what an intermediary (Railway's edge, a load
+  // balancer) drops. Sending an SSE comment every few seconds keeps a trickle of
+  // bytes flowing so no layer sees the connection as idle. Debounced — reset on
+  // every real chunk — so a heartbeat can never land inside a data frame.
+  let beat = null
+  const arm = () => {
+    if (!wantsSSE) return
+    clearTimeout(beat)
+    beat = setTimeout(() => { try { res.write(': keep-alive\n\n') } catch { /* closed */ } arm() }, 10000)
+  }
+  const disarm = () => clearTimeout(beat)
+
+  // For a streaming request, commit the response and start the heartbeat NOW —
+  // BEFORE the upstream has answered. This model can be slow (or flaky) to send even
+  // its first byte; if we waited for that byte before responding, Railway's edge
+  // would time out and return "Application failed to respond" (502). Sending the SSE
+  // headers at t=0 means the edge sees an active response from the instant the
+  // request arrives, and the heartbeat covers the wait for the model's first token.
+  if (wantsSSE) {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+      Connection: 'keep-alive',
+    })
+    arm()
+  }
+
   const upstreamReq = doRequest(target, {
     method: req.method,
     headers: {
       'Content-Type': req.headers['content-type'] || 'application/json',
-      // Forward the caller's Accept so a streaming request stays streaming.
       accept: req.headers['accept'] || 'application/json',
       Authorization: `Bearer ${K2_KEY}`,
       ...(body !== undefined ? { 'Content-Length': Buffer.byteLength(body) } : {}),
     },
   }, (upstreamRes) => {
-    // Forward the reply straight through as bytes arrive. The headers go out
-    // immediately (before the model has thought), so Railway's edge sees an active
-    // response from the first millisecond and never returns its "Application failed
-    // to respond" 502.
-    const ctype = upstreamRes.headers['content-type'] || 'application/json'
-    const isSSE = ctype.includes('event-stream')
-    res.writeHead(upstreamRes.statusCode || 502, {
-      'Content-Type': ctype,
-      'Cache-Control': 'no-cache, no-transform',
-      // Tell any intermediary proxy (nginx-style) not to buffer the stream.
-      'X-Accel-Buffering': 'no',
-    })
-
-    // HEARTBEAT. The reasoning model is silent for minutes while it thinks, and an
-    // idle TCP connection is exactly what an intermediary (Railway's edge, a load
-    // balancer, a corporate proxy) drops. So while nothing is arriving from the
-    // model we send an SSE comment line every few seconds: the browser's parser
-    // ignores ':' comment lines, but the continuous trickle of bytes means NO layer
-    // ever sees the connection as idle. The timer is DEBOUNCED — reset on every real
-    // chunk — so a heartbeat can only fire during a genuine gap, never in the middle
-    // of a data frame. This is what keeps the connection live end-to-end with no
-    // timeout able to cut it.
-    let beat = null
-    const arm = () => {
-      if (!isSSE) return
-      clearTimeout(beat)
-      beat = setTimeout(() => { try { res.write(': keep-alive\n\n') } catch { /* closed */ } arm() }, 10000)
+    // Non-streaming callers get the upstream's own status + headers (we didn't
+    // commit above). Streaming callers already have their SSE headers.
+    if (!wantsSSE) {
+      res.writeHead(upstreamRes.statusCode || 502, {
+        'Content-Type': upstreamRes.headers['content-type'] || 'application/json',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      })
     }
-    const disarm = () => clearTimeout(beat)
-
-    arm()
     upstreamRes.on('data', (chunk) => { arm(); res.write(chunk) })
     upstreamRes.on('end', () => { disarm(); try { res.end() } catch { /* closed */ } })
     upstreamRes.on('close', disarm)
-    upstreamRes.on('error', () => { disarm(); try { res.end() } catch { /* already closed */ } })
+    upstreamRes.on('error', () => { disarm(); try { res.end() } catch { /* closed */ } })
   })
 
-  // The whole point: no idle timeout on the upstream socket. A silent 5-minute
-  // think must not be read as a dead connection.
+  // No idle timeout on the upstream socket — a silent multi-minute think must not
+  // be read as a dead connection.
   upstreamReq.setTimeout(0)
   upstreamReq.on('error', (e) => {
+    disarm()
     if (!res.headersSent) {
       res.writeHead(502, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify({ error: `model endpoint unreachable: ${e.message}` }))
     } else {
-      try { res.end() } catch { /* already closed */ }
+      // Headers already committed (SSE) — surface the failure as an SSE error event
+      // so the client shows a real message rather than a silent truncation.
+      try { res.write(`data: ${JSON.stringify({ error: `model endpoint unreachable: ${e.message}` })}\n\n`); res.end() } catch { /* closed */ }
     }
   })
   // If the browser hangs up, stop pulling from the model.
-  res.on('close', () => upstreamReq.destroy())
+  res.on('close', () => { disarm(); upstreamReq.destroy() })
 
   if (body !== undefined) upstreamReq.write(body)
   upstreamReq.end()
