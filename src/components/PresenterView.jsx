@@ -80,6 +80,12 @@ export default function PresenterView({ board, fullscreenable = true, highlightO
     let startLeft = 0
     const onDown = (e) => {
       if (e.button !== 0) return
+      // Don't start a pan (and don't capture the pointer) when the press lands on a
+      // clickable hotspot — otherwise the capture eats the button's click and the
+      // referenced-process box looks selectable but never opens. This native handler
+      // runs during bubbling BEFORE React's, so the check has to be here, not a
+      // stopPropagation on the button.
+      if (e.target?.closest?.('.pd-pv-hotspot')) return
       dragging = true
       startX = e.clientX
       startLeft = st.scrollLeft
