@@ -73,7 +73,7 @@ function SystemBand({ id, value }) {
 
 export default function ProcessNode({ id, type, data, selected }) {
   const shape = SHAPE_MAP[type] || SHAPE_MAP.activity
-  const { setInfo, changeNodeType, pickProcessRef, setCalloutTail } = useContext(BoardContext)
+  const { setInfo, changeNodeType, pickProcessRef, setCalloutTail, openProcessRef } = useContext(BoardContext)
   const isAuto = AUTO_TYPES.includes(type)
   const hasSystem = SYSTEM_TYPES.includes(type)
 
@@ -82,6 +82,9 @@ export default function ProcessNode({ id, type, data, selected }) {
       className={`pd-node pd-node--${type} ${selected ? 'is-selected' : ''}${type === 'callout' ? ` tail-${data.tail || 'br'}` : ''}`}
       onMouseEnter={() => setInfo(shape)}
       onMouseLeave={() => setInfo(null)}
+      // Double-clicking ANYWHERE on a referenced-process box opens it (its images or
+      // the linked process), not just the small code line at the bottom.
+      onDoubleClick={type === 'referencedProcess' ? (e) => { e.stopPropagation(); openProcessRef?.(id) } : undefined}
     >
       <NodeToolbar isVisible={selected} position={Position.Top} className="pd-shape-menu">
         {/* Once a reference is linked, double-clicking follows it — so changing or
