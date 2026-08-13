@@ -97,21 +97,60 @@ Respond with ONE JSON object and nothing else — no prose, no markdown fences:
  "edges": [{"source","target","label"}],
  "analysis": [string]}`
 
+// Pull a JSON object out of the model's reply and parse it, tolerating the things a
+// reasoning model does that strict JSON.parse rejects: ```json fences, prose around
+// the object, raw newlines/tabs inside string values (a multi-line description), and
+// trailing commas. Strictly-valid JSON still parses on the first try; the repair
+// pass only runs when it wouldn't.
 function extractJson(text) {
   if (!text) throw new Error('The model returned an empty response')
   let t = String(text).trim()
-  // strip ```json ... ``` fences if present
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i)
   if (fence) t = fence[1].trim()
-  // fall back to the outermost { ... }
-  if (!t.startsWith('{')) {
-    const s = t.indexOf('{')
-    const e = t.lastIndexOf('}')
-    if (s !== -1 && e > s) t = t.slice(s, e + 1)
+
+  // Slice to the balanced { … }: first brace to its MATCHING close, skipping braces
+  // inside strings. lastIndexOf('}') can grab a brace from trailing prose; this
+  // walks the structure so it can't.
+  const start = t.indexOf('{')
+  if (start !== -1) {
+    let depth = 0; let inStr = false; let esc = false; let end = -1
+    for (let i = start; i < t.length; i++) {
+      const c = t[i]
+      if (inStr) {
+        if (esc) esc = false
+        else if (c === '\\') esc = true
+        else if (c === '"') inStr = false
+      } else if (c === '"') inStr = true
+      else if (c === '{') depth++
+      else if (c === '}') { depth -= 1; if (depth === 0) { end = i; break } }
+    }
+    t = end !== -1 ? t.slice(start, end + 1) : t.slice(start)
   }
-  try {
-    return JSON.parse(t)
-  } catch {
+
+  try { return JSON.parse(t) } catch { /* fall through to the repair pass */ }
+
+  // Repair: escape raw control characters that sit INSIDE a string (the usual
+  // culprit — a description the model wrote across two lines), then drop trailing
+  // commas. Both are safe no-ops on already-valid JSON.
+  let out = ''; let inStr = false; let esc = false
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i]
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue }
+      if (c === '\\') { out += c; esc = true; continue }
+      if (c === '"') { out += c; inStr = false; continue }
+      if (c === '\n') { out += '\\n'; continue }
+      if (c === '\r') { out += '\\r'; continue }
+      if (c === '\t') { out += '\\t'; continue }
+      out += c
+      continue
+    }
+    if (c === '"') { out += c; inStr = true; continue }
+    out += c
+  }
+  out = out.replace(/,(\s*[}\]])/g, '$1')
+
+  try { return JSON.parse(out) } catch {
     throw new Error('Could not parse the JSON returned by the model')
   }
 }
