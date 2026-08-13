@@ -87,6 +87,12 @@ OUTPUT SHAPE RULES (map the skill onto this app's data model):
 - "edges" connect the whole flow. Label a decision's branches only when a branch
   genuinely routes somewhere different (e.g. "Yes"/"No"); a forward-only gate needs
   no label.
+- CONVERGE shared tails onto ONE node — do NOT duplicate a step per branch. If two
+  branches continue the same way, both edges point at the SAME node. A process has
+  exactly ONE "End" unless the branches reach genuinely different outcomes, and a
+  shared close-out or referenced process (e.g. off-boarding both branches run into)
+  is ONE node with several incoming edges — never one copy per branch, each wired to
+  its own End. Two Ends or two identical off-boarding nodes is a bug.
 - "analysis": the gap-analysis box as an ARRAY OF STRINGS (free-form lines).
   Use "1. Heading" lines for groups and "- point" lines for bullets, per §10 and
   §0. Include the open questions the description raised.

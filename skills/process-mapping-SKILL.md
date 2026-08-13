@@ -42,6 +42,23 @@ in order; each one is expanded in the sections below.
    intern endings (on-time / extend / convert) became: `Extend internship?` →
    (endorse → approve) → **one** shared `Off-board & complete evaluation` →
    `Convert to full-time?` → referenced *Full-time hiring process* or End.
+
+   **CONVERGE shared tails onto ONE node — this is the most common generation bug.**
+   When several branches continue the same way, they meet at a SINGLE node that has
+   several incoming edges; you do NOT make one copy of that node per branch. In
+   particular:
+   · **One End.** A process has exactly ONE `End`, unless the branches reach
+     genuinely different terminal outcomes. "Extended, then off-boarded" and "not
+     extended, then off-boarded" are the SAME ending — they share one off-boarding
+     and one End, reached by two edges.
+   · **One shared referenced process / close-out.** If both a `No` branch and a
+     completed extension path run into off-boarding, there is ONE `Off-boarding`
+     referenced node with two incoming edges — not two identical off-boarding nodes
+     each wired to their own End.
+   · Worked example (visiting student): `Extension required?` —No→ `Off-boarding`;
+     —Yes→ submit → review → check budget → approve → issue extension letter →
+     **the same** `Off-boarding` → **the same** `End`. One off-boarding, one End,
+     two edges converging. Two off-boardings or two Ends is wrong.
 6. **Apply the shape vocabulary**: approve/endorse ⇒ decision diamond (§5a);
    truly system-driven ⇒ Automated Activity (§4); a linked separate process ⇒
    Referenced Process; the system a step runs in ⇒ the +System shape (§5b).
