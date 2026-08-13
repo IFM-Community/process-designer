@@ -20,6 +20,8 @@ export default function Reader({ session, processes = [], onOpen, onBack }) {
   // "Who are you?" — pick your role and your own steps stay lit while the rest dim,
   // so a reader can find just the parts that are theirs. '' = show everyone.
   const [asRole, setAsRole] = useState('')
+  // A referenced process linked to slides opens them here, stacked. { label, images }.
+  const [viewer, setViewer] = useState(null)
   const pub = session.publish || {}
   const snap = pub.snapshot || session
 
@@ -119,17 +121,25 @@ export default function Reader({ session, processes = [], onOpen, onBack }) {
               {steps.map((n) => {
                 const target = refTargetOf(n)
                 const openable = target && statusOf(target) === PUBLISHED
+                const imgs = n.data?.images?.length || 0
+                // A referenced process links EITHER to slides (images) OR to another
+                // published process. Both are clickable in the reader; images win if
+                // present (attaching them clears the process link anyway).
+                const onClick = imgs
+                  ? () => setViewer({ label: n.data?.label, images: n.data.images })
+                  : (openable ? () => onOpen(target.id) : undefined)
                 return (
                   <tr
                     key={n.id}
-                    className={`${mine(n) ? '' : 'is-dim'} ${openable ? 'is-link' : ''}`}
-                    onClick={openable ? () => onOpen(target.id) : undefined}
-                    title={openable ? `Open “${target.title || 'process'}”` : undefined}
+                    className={`${mine(n) ? '' : 'is-dim'} ${onClick ? 'is-link' : ''}`}
+                    onClick={onClick}
+                    title={imgs ? `View ${imgs} image${imgs > 1 ? 's' : ''}` : (openable ? `Open “${target.title || 'process'}”` : undefined)}
                   >
                     <td className="pd-reader-code">{codeOf(n)}</td>
                     <td>
                       <strong>{n.data?.label}</strong>
-                      {openable && <span className="pd-reader-open">↗ open process</span>}
+                      {imgs ? <span className="pd-reader-open">▦ {imgs} image{imgs > 1 ? 's' : ''}</span> : null}
+                      {!imgs && openable && <span className="pd-reader-open">↗ open process</span>}
                       {n.data?.description && <div className="pd-reader-desc">{n.data.description}</div>}
                     </td>
                     <td>{laneOf(n)}</td>
@@ -142,6 +152,23 @@ export default function Reader({ session, processes = [], onOpen, onBack }) {
           </table>
         )}
       </div>
+
+      {/* Reference-image viewer: the linked slides, stacked top-to-bottom. */}
+      {viewer && (
+        <div className="pd-imgview-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) setViewer(null) }}>
+          <div className="pd-imgview">
+            <div className="pd-imgview-bar">
+              <span className="pd-imgview-title">{viewer.label || 'Referenced process'}</span>
+              <button className="pd-imgview-close" onClick={() => setViewer(null)}>✕ Close</button>
+            </div>
+            <div className="pd-imgview-body">
+              {viewer.images.map((src, i) => (
+                <img key={i} className="pd-imgview-img" src={src} alt={`${viewer.label || 'Reference'} — ${i + 1}`} />
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
