@@ -155,7 +155,12 @@ export default function PresenterView({ board, fullscreenable = true, highlightO
                     height: size.height * k,
                   }}
                   title={imgs ? `View ${imgs} image${imgs > 1 ? 's' : ''}` : `Open “${n.data?.label || 'process'}”`}
-                  onClick={() => onOpenRef(n)}
+                  // Stop the press from starting a pan on the stage — otherwise the
+                  // stage captures the pointer and the button's click never fires,
+                  // so it looks selectable but "clicking does nothing".
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); onOpenRef(n) }}
                 />
               )
             })}
