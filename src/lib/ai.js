@@ -336,6 +336,16 @@ recommendation (and keep what stays unresolved as OPEN: / in the analysis), give
 lane only to parties that ACT, split multi-party actions into one step per party,
 and factor shared steps out of end-scenarios instead of duplicating them.
 
+ALSO group the finished map into process brackets (phases), per §11, in the SAME
+JSON object. Add two more keys:
+- "phases": [{"id":"p1","label":"…"}, …] — 4-6 stages, in order, named as
+  action-nouns/gerunds ("Request submission", "Contract signing"), NOT imperative
+  verbs or bare states.
+- "assign": {"<stepId>":"<phaseId>", …} — an entry for EVERY numbered step (exclude
+  only startEnd). Phases are CONTIGUOUS in flow/number order: each is an unbroken run
+  of consecutive step numbers, so a lower-numbered step can never sit in a later
+  phase than a higher-numbered one. Cut by POSITION in the sequence, not by theme.
+
 PROCESS DESCRIPTION:
 ${prompt}`,
   })

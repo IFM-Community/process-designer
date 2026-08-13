@@ -1425,6 +1425,20 @@ function Canvas() {
           edges: board.edges,
           analysis: board.analysis || null,
         }
+        // The generate call now also returns the phase grouping, so a new process
+        // arrives already grouped instead of forcing a second "Group into phases"
+        // run. Re-issue phase ids, and run the contiguity guard so a themed grouping
+        // can't interleave the numbered flow.
+        if (Array.isArray(spec.phases) && spec.phases.length && spec.assign) {
+          const idMap = new Map(spec.phases.map((p) => [p.id, newPhaseId()]))
+          const assign = enforceContiguousPhases(board.nodes, board.edges, spec.phases, spec.assign)
+          s.phases = spec.phases.filter((p) => p?.id && p?.label).map((p) => ({ id: idMap.get(p.id), label: p.label }))
+          s.collapsedPhases = []
+          s.nodes = board.nodes.map((n) => {
+            const pid = idMap.get(assign[n.id])
+            return pid ? { ...n, data: { ...n.data, phase: pid } } : n
+          })
+        }
         setSessions((ss) => [...ss, s])
         setActiveId(s.id)
       } else {
