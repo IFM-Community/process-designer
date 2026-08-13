@@ -1482,6 +1482,13 @@ function Canvas() {
 
   onGeneratedRef.current = onGenerated
 
+  // DEV-ONLY: inject a hand-authored spec as a new process, bypassing the model —
+  // the same layout/renumber pipeline a generated process goes through. Never
+  // shipped (guarded to the dev build).
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    window.__pdInject = (spec) => onGeneratedRef.current?.(spec, { asNew: true })
+  }
+
   // Loading an example opens it as its OWN new process session, so it never
   // overwrites the steps in whatever process is currently active.
 

@@ -201,7 +201,8 @@ async function callModel({ system, prompt, json = true, signal }) {
     return null
   }
 
-  try {
+  // One streaming attempt: fetch, read the SSE stream, return {text, finish}.
+  const streamOnce = async () => {
     let res
     try {
       res = await fetch(API_URL, {
@@ -280,6 +281,21 @@ async function callModel({ system, prompt, json = true, signal }) {
     } catch (e) {
       throw abortError(e) || new Error(`Lost the connection to the K2 endpoint while streaming (${e.message}).`)
     }
+    return { text, finish }
+  }
+
+  try {
+    let text = ''
+    let finish = null
+    // This reasoning model occasionally finishes with ONLY its internal reasoning
+    // and an empty answer — a transient quirk, not a real failure. One clean retry
+    // almost always produces the answer, so a blank first reply gets a second go
+    // rather than a dead-end error. (A cut-off "length" reply is not retried — it's
+    // genuinely too big; see below.)
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      ;({ text, finish } = await streamOnce())
+      if (text.trim() || finish === 'length' || signal?.aborted) break
+    }
 
     // Hit the token ceiling (should not happen without a max_tokens cap, but kept
     // as a safety net). An incomplete reply must never reach the JSON parser — a
@@ -290,6 +306,9 @@ async function callModel({ system, prompt, json = true, signal }) {
           ? 'The model’s answer was cut off before it finished — this change asks for too much in one pass. Split it into two smaller changes.'
           : 'The model returned no answer. Try a shorter, simpler description.',
       )
+    }
+    if (!text.trim()) {
+      throw new Error('The model produced only its internal reasoning and no answer, twice. Please try again.')
     }
     return json ? extractJson(text) : text
   } finally {
