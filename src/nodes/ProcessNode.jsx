@@ -25,15 +25,20 @@ const NUMBERED = [
 function ProcessRef({ id, data }) {
   const { processRefs, openProcessRef } = useContext(BoardContext)
   const target = data.refId ? processRefs?.get(data.refId) : null
+  const imgs = data.images?.length || 0
+  const linked = imgs || target
+  const label = imgs
+    ? `▦ ${imgs} image${imgs > 1 ? 's' : ''}`
+    : (target ? (target.code || target.title) : 'link a process…')
   return (
     <div
-      className={`pd-ref-code ${target ? '' : 'is-unset'}`}
-      title={target
-        ? `${target.title} — double-click to open it`
-        : 'No process linked yet — double-click to choose one'}
+      className={`pd-ref-code ${linked ? '' : 'is-unset'}`}
+      title={imgs
+        ? `${imgs} reference image${imgs > 1 ? 's' : ''} — double-click to view`
+        : (target ? `${target.title} — double-click to open it` : 'No process linked yet — double-click to choose one')}
       onDoubleClick={(e) => { e.stopPropagation(); openProcessRef?.(id) }}
     >
-      {target ? target.code || target.title : 'link a process…'}
+      {label}
     </div>
   )
 }

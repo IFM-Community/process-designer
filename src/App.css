@@ -1227,6 +1227,40 @@
   border: 1px solid #d6dfe9; border-radius: 8px; color: #2b3a4d; font-family: inherit;
 }
 .pd-modal-hint { margin-top: 6px; font-size: 11.5px; color: #9fb0c4; }
+
+/* Attach reference images (slides) instead of linking a process. */
+.pd-ref-images { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eef2f7; }
+.pd-ref-images-or { font-size: 11px; font-weight: 600; color: #9fb0c4; text-align: center; margin-bottom: 8px; }
+.pd-ref-images-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  border: 1px dashed #c6d2e0; border-radius: 8px; padding: 8px 14px;
+  font-size: 12.5px; font-weight: 600; color: var(--pd-green); background: #f7fafc;
+}
+.pd-ref-images-btn:hover { background: #eef3f8; }
+.pd-ref-images-has { margin-left: 12px; font-size: 12px; color: var(--pd-ink); }
+.pd-linktext { border: none; background: none; color: var(--pd-green); font: inherit; cursor: pointer; text-decoration: underline; padding: 0; }
+
+/* Reference-image viewer — the linked slides stacked top-to-bottom. */
+.pd-imgview-scrim {
+  position: fixed; inset: 0; z-index: 300; background: rgba(15, 30, 50, 0.6);
+  display: flex; align-items: flex-start; justify-content: center; padding: 24px;
+}
+.pd-imgview {
+  display: flex; flex-direction: column; width: min(1100px, 100%); max-height: 100%;
+  background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 20px 60px rgba(12,29,54,0.4);
+}
+.pd-imgview-bar {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; background: var(--pd-green); color: #fff;
+}
+.pd-imgview-title { font-size: 14px; font-weight: 700; }
+.pd-imgview-close {
+  border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.12); color: #fff;
+  font-weight: 600; font-size: 12px; padding: 6px 12px; border-radius: 7px; cursor: pointer;
+}
+.pd-imgview-close:hover { background: rgba(255,255,255,0.22); }
+.pd-imgview-body { overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; background: #f4f7fa; }
+.pd-imgview-img { width: 100%; height: auto; border: 1px solid #e3e9f0; border-radius: 6px; box-shadow: 0 2px 10px rgba(19,42,74,0.08); }
 .pd-modal-actions { display: flex; justify-content: flex-end; gap: 9px; margin-top: 22px; }
 .pd-modal-actions button {
   padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;

@@ -908,14 +908,33 @@ function Canvas() {
     [sessions],
   )
 
-  // Double-clicking a reference follows it; if nothing is linked yet, it asks what
-  // to link. One gesture, and it does the obvious thing in both states.
+  // Double-clicking a reference does the obvious thing for how it's linked: opens
+  // the attached images (for a process documented as slides, not drawn here), or
+  // follows the linked process, or — if nothing is linked yet — asks what to link.
+  const [imageViewerFor, setImageViewerFor] = useState(null)
   const openProcessRef = useCallback((nodeId) => {
     const n = active.nodes.find((x) => x.id === nodeId)
+    if (n?.data?.images?.length) { setImageViewerFor(nodeId); return }
     const target = n?.data?.refId && sessions.find((x) => x.id === n.data.refId)
     if (target) { setActiveId(target.id); setView('map'); return }
     setRefPickerFor(nodeId)
   }, [active.nodes, sessions])
+
+  // Attach reference IMAGES to a referenced-process shape — for a process that is
+  // owned elsewhere (onboarding, off-boarding) and lives as slides, not a map drawn
+  // here. Stored as data URLs on the node, shown stacked when the shape is opened.
+  const attachRefImages = useCallback((nodeId, images) => {
+    snapshot()
+    patchActive((s) => ({
+      ...s,
+      nodes: s.nodes.map((n) => (n.id === nodeId
+        // Images and a linked process are alternatives — attaching images clears the
+        // process link so the double-click has one unambiguous thing to open.
+        ? { ...n, data: { ...n.data, images, refId: undefined } }
+        : n)),
+    }))
+    setRefPickerFor(null)
+  }, [patchActive, snapshot])
 
   const linkProcessRef = useCallback((nodeId, refId) => {
     const target = refId ? sessions.find((x) => x.id === refId) : null
@@ -2188,6 +2207,35 @@ function Canvas() {
                     )
                   })()}
                 </div>
+
+                {/* Some referenced processes are owned elsewhere and live as slides,
+                    not maps drawn here (onboarding, off-boarding). Link the images
+                    instead — they show stacked when the shape is opened. */}
+                <div className="pd-ref-images">
+                  <div className="pd-ref-images-or">— or link images instead —</div>
+                  <label className="pd-ref-images-btn">
+                    ▦ Attach images (e.g. slides)
+                    <input
+                      type="file" accept="image/*" multiple hidden
+                      onChange={async (e) => {
+                        const files = [...(e.target.files || [])]
+                        if (!files.length) return
+                        const urls = await Promise.all(files.map((f) => new Promise((res) => {
+                          const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(f)
+                        })))
+                        attachRefImages(refPickerFor, urls)
+                      }}
+                    />
+                  </label>
+                  {active.nodes.find((n) => n.id === refPickerFor)?.data?.images?.length ? (
+                    <span className="pd-ref-images-has">
+                      {active.nodes.find((n) => n.id === refPickerFor).data.images.length} image(s) attached ·{' '}
+                      <button className="pd-linktext" onClick={() => attachRefImages(refPickerFor, [])}>remove</button>
+                    </span>
+                  ) : null}
+                  <p className="pd-modal-hint">For a process owned elsewhere — link its slides rather than drawing a map. They open stacked when you double-click the shape.</p>
+                </div>
+
                 <div className="pd-modal-actions">
                   <button className="pd-modal-ghost" onClick={() => setRefPickerFor(null)}>Cancel</button>
                   {/* A link you cannot undo is a trap: pick the wrong process and
@@ -2201,6 +2249,27 @@ function Canvas() {
               </div>
             </div>
           )}
+
+          {/* Reference-image viewer: the linked slides, stacked top-to-bottom. */}
+          {imageViewerFor && (() => {
+            const n = active.nodes.find((x) => x.id === imageViewerFor)
+            const imgs = n?.data?.images || []
+            return (
+              <div className="pd-imgview-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) setImageViewerFor(null) }}>
+                <div className="pd-imgview">
+                  <div className="pd-imgview-bar">
+                    <span className="pd-imgview-title">{n?.data?.label || 'Referenced process'}</span>
+                    <button className="pd-imgview-close" onClick={() => setImageViewerFor(null)}>✕ Close</button>
+                  </div>
+                  <div className="pd-imgview-body">
+                    {imgs.map((src, i) => (
+                      <img key={i} className="pd-imgview-img" src={src} alt={`${n?.data?.label || 'Reference'} — ${i + 1}`} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           {cardOpen && (
             <ProcessCard
