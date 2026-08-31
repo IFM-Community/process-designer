@@ -128,6 +128,37 @@ function packColumns({ order, incoming, laneOf, colOverride = () => undefined })
     for (const [id, c] of colOf) m.set(`${laneOf(id)}:${c}`, id)
     return m
   }
+  // Forward adjacency, to spare a RECONVERGING branch. When an edge p->id runs over
+  // a box that itself DESCENDS from p, that box is part of p's own branch structure
+  // (e.g. a decision's "yes" path that rejoins the flow at id), not a stray box that
+  // drifted in from somewhere else. Pushing it right doesn't remove the overlap —
+  // the edge still has to span the whole branch — it just widens the board. So leave
+  // it where it is and let the connector route around it, exactly as a hand-tidied
+  // layout does. (This was the "extension branch stretches on Tidy" bug: the
+  // 017 -> No -> 025 edge shoved the 017 -> Yes -> 018 -> 019 chain three columns
+  // right for nothing.)
+  const fwd = new Map()
+  for (const [t, preds] of incoming) {
+    for (const p of preds) {
+      if (!fwd.has(p)) fwd.set(p, [])
+      fwd.get(p).push(t)
+    }
+  }
+  const descCache = new Map()
+  const descendantsOf = (root) => {
+    if (descCache.has(root)) return descCache.get(root)
+    const seen = new Set()
+    const stack = [...(fwd.get(root) || [])]
+    while (stack.length) {
+      const x = stack.pop()
+      if (seen.has(x)) continue
+      seen.add(x)
+      for (const y of fwd.get(x) || []) stack.push(y)
+    }
+    descCache.set(root, seen)
+    return seen
+  }
+
   // Each node may be relocated at most once. Without that cap two branches of the
   // same decision, both landing in the decision's own lane, shove each other
   // rightwards forever — one run pushed a node out to column 123.
@@ -151,6 +182,10 @@ function packColumns({ order, incoming, laneOf, colOverride = () => undefined })
           // it. Leave those alone rather than pushing them into the far distance.
           const sameParent = (incoming.get(blocker) || []).some((b) => b === p)
           if (sameParent) continue
+          // A box that descends from the edge's source is inside that source's own
+          // reconverging branch, not a stray collision — pushing it only widens the
+          // board. Leave it; the connector routes around it.
+          if (descendantsOf(p).has(blocker)) continue
           // Park the blocker just past the end of the edge that runs over it.
           let target = hi + 1
           while (occupied.has(`${lane}:${target}`)) target += 1
