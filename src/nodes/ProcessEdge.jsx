@@ -23,10 +23,18 @@ export default function ProcessEdge({
   if (data?.detourY != null) {
     const y = data.detourY
     const dir = targetX >= sourceX ? 1 : -1
-    const sx = sourceX + dir * 34
     const tx = targetX - dir * 34
-    path = `M ${sourceX},${sourceY} L ${sx},${sourceY} L ${sx},${y} L ${tx},${y} L ${tx},${targetY} L ${targetX},${targetY}`
-    labelX = (sx + tx) / 2
+    // A bottom/top exit (a decision's alternative branch) drops straight out of the
+    // shape to the detour line; a side exit steps out horizontally first.
+    const vertical = sourcePosition === 'top' || sourcePosition === 'bottom'
+    if (vertical) {
+      path = `M ${sourceX},${sourceY} L ${sourceX},${y} L ${tx},${y} L ${tx},${targetY} L ${targetX},${targetY}`
+      labelX = (sourceX + tx) / 2
+    } else {
+      const sx = sourceX + dir * 34
+      path = `M ${sourceX},${sourceY} L ${sx},${sourceY} L ${sx},${y} L ${tx},${y} L ${tx},${targetY} L ${targetX},${targetY}`
+      labelX = (sx + tx) / 2
+    }
     labelY = y
   }
   const [editing, setEditing] = useState(false)

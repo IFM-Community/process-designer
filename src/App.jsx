@@ -321,7 +321,16 @@ function relinkEdges(nodes, edges, lanesArg = DEFAULT_LANES.length) {
     const data = { ...(e.data || {}) }
     if (detourY == null) delete data.detourY
     else data.detourY = detourY
-    return { ...e, sourceHandle: sh, targetHandle: th, data }
+    // A DECISION's alternative branch (the "No" that skips ahead past the steps of
+    // the "Yes" path) detours around those boxes. Send it out of the diamond's
+    // BOTTOM (or top, for an upward detour) rather than its side, so it visibly
+    // drops out of the decision instead of sharing the side the forward branch
+    // already uses. Ordinary same-lane detours keep their side exit.
+    let srcHandle = sh
+    if (detourY != null && s.type === 'decision') {
+      srcHandle = detourY > nodeCenter(s).y ? 'b-s' : 't-s'
+    }
+    return { ...e, sourceHandle: srcHandle, targetHandle: th, data }
   })
 }
 

@@ -138,7 +138,13 @@ function renderEdge(e, nodeById) {
     detourY != null
       ? (() => {
           const dir = t.x >= s.x ? 1 : -1
-          const sx = s.x + dir * 34, tx = t.x - dir * 34
+          const tx = t.x - dir * 34
+          // A bottom/top exit drops straight down to the detour line; a side exit
+          // steps out horizontally first (mirrors ProcessEdge on the canvas).
+          if (sSide === 'b' || sSide === 't') {
+            return [s, { x: s.x, y: detourY }, { x: tx, y: detourY }, { x: tx, y: t.y }, t]
+          }
+          const sx = s.x + dir * 34
           return [s, { x: sx, y: s.y }, { x: sx, y: detourY }, { x: tx, y: detourY }, { x: tx, y: t.y }, t]
         })()
       : routePoints(s, sSide, t, tSide)
