@@ -2158,6 +2158,22 @@ function Canvas() {
                             <strong>Procedure manual (Word)</strong>
                             <span>Editable .docx — process card, map and procedure table, in the People &amp; Culture manual format</span>
                           </button>
+                          {/* The raw map as JSON — a portable backup, and the exact
+                              thing to hand over when a layout needs reproducing. */}
+                          <button onClick={() => {
+                            try {
+                              const blob = new Blob([JSON.stringify(active, null, 2)], { type: 'application/json' })
+                              const url = URL.createObjectURL(blob)
+                              const a = document.createElement('a')
+                              a.href = url
+                              a.download = `${(active.title || 'process').replace(/[^\w-]+/g, '_')}.json`
+                              document.body.appendChild(a); a.click(); a.remove()
+                              URL.revokeObjectURL(url)
+                            } catch (e) { alert(`Could not export the JSON: ${e.message || e}`) }
+                          }}>
+                            <strong>Process data (JSON)</strong>
+                            <span>The raw map — a backup, or to hand over for support</span>
+                          </button>
                         </div>
                       )}
                     </div>
