@@ -1631,13 +1631,16 @@ function Canvas() {
     setExporting(true)
     try {
       // No background → transparent PNG (blends into a doc/slide, like a screenshot).
+      // The exported image is deliberately just the MAP — the gap-analysis box is
+      // internal working notes, not part of the picture you put in a deck, so it is
+      // always left out (pass no analysis).
       const svg = boardToSvg({
         title: active.title,
         laneLabels: active.laneLabels,
         laneRows: rowsOf(active),
         nodes: active.nodes,
         edges: active.edges,
-        analysis: active.analysis,
+        analysis: null,
       })
       const m = svg.match(/width="(\d+)" height="(\d+)"/)
       const w = m ? +m[1] : 1200
