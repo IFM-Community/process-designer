@@ -18,6 +18,7 @@ import { existsSync } from 'node:fs'
 import { extname, join, normalize, resolve } from 'node:path'
 import { handleApi } from './api.mjs'
 import { DB_FILE } from './db.mjs'
+import { STORE_KIND, getMetaValue } from './store/index.mjs'
 
 const PORT = Number(process.env.PORT || 8080)
 const DIST = resolve(process.cwd(), 'dist')
@@ -204,3 +205,19 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`[process-designer] database ${DB_FILE}`)
   if (!K2_KEY || !K2_URL) console.warn('[process-designer] WARNING: K2_API_URL/K2_API_KEY not set — AI features will fail')
 })
+
+// Keep Supabase from auto-pausing. A free-tier Postgres project pauses after ~7
+// days of DB inactivity, and while paused its pooler answers every query with a 500
+// "tenant not found" — which is exactly the outage that took the studio list down.
+// A lightweight read every few hours guarantees there is always recent activity.
+// SQLite never pauses, so this only runs on Postgres.
+if (STORE_KIND === 'postgres') {
+  const KEEP_WARM_MS = 6 * 60 * 60 * 1000 // every 6 hours — negligible load, well inside the 7-day window
+  const ping = async () => {
+    try { await getMetaValue('__keepalive'); console.log('[keep-warm] db ping ok') }
+    catch (e) { console.warn('[keep-warm] db ping failed:', e.message) }
+  }
+  const timer = setInterval(ping, KEEP_WARM_MS)
+  timer.unref?.() // don't let the ping timer hold the process open on its own
+  ping() // and once right after boot
+}
